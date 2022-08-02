@@ -3,6 +3,7 @@
 
 # include <errno.h>
 # include <fcntl.h>
+# include <mqueue.h>
 # include <signal.h>
 # include <stdbool.h>
 # include <stdlib.h>
@@ -17,7 +18,8 @@
 
 typedef struct	s_lemipc
 {
-	int			fd;
+	int			shm_fd;
+	int			mq_fd;
 	size_t		size;
 	void		*addr;
 }				t_lemipc;
