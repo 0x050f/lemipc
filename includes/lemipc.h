@@ -12,12 +12,15 @@
 # include <unistd.h>
 
 # define PRG_NAME "lemipc"
-# define MEMORY_SIZE 4096
 
 typedef struct	s_lemipc {
 	int			fd;
 	size_t		size;
 	void		*addr;
 }				t_lemipc;
+
+typedef struct	s_game {
+	uint8_t		map[10][10];
+}				t_game;
 
 #endif

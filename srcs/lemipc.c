@@ -8,12 +8,22 @@ size_t		align_up(size_t size, size_t align) {
 
 int			create_game(int fd)
 {
-	size_t	size = size = align_up(MEMORY_SIZE, getpagesize());
+	printf("Creating the game...\n");
+	size_t	size = size = align_up(sizeof(t_game), getpagesize());
 	if (ftruncate(fd, size) < 0)
 	{
 		dprintf(STDERR_FILENO, "%s: ftruncate(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
 	}
+	void *addr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (addr == MAP_FAILED)
+	{
+		dprintf(STDERR_FILENO, "%s: mmap(): %s\n", PRG_NAME, strerror(errno));
+		return (EXIT_FAILURE);
+	}
+	uint8_t *map = (uint8_t *)((t_game *)addr)->map;
+	for (size_t i = 0; i < sizeof(((t_game *)0)->map); i++)
+			map[i] = '0';
 	return (size);
 }
 
@@ -26,11 +36,11 @@ int			join_game(int fd, size_t size, char *team_name)
 		dprintf(STDERR_FILENO, "%s: mmap(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
 	}
-//	for (size_t i = 0; i < size; i++)
-//		printf("%02x", ((char *)addr)[i]);
-//	printf("\n");
+	for (size_t i = 0; i < sizeof(((t_game *)0)->map); i++)
+		printf("%02x", ((char *)addr)[i]);
+	printf("\n");
 //	sprintf(addr, "Bonjour bonjour");
-	sleep(5);
+	sleep(10);
 	//
 	if (munmap(addr, size) < 0)
 	{
@@ -47,7 +57,8 @@ void		signal_handler(int signum)
 		munmap(g_lemipc.addr, g_lemipc.size);
 	if (g_lemipc.fd >= 0)
 		close(g_lemipc.fd);
-	shm_unlink(PRG_NAME);
+//	TODO: only unlink if last player
+//	shm_unlink(PRG_NAME);
 	printf("\b\bLeaving the game...\n");
 	exit(EXIT_SUCCESS);
 }
@@ -83,7 +94,8 @@ int			lemipc(char *team_name)
 		ret = join_game(g_lemipc.fd, sb.st_size, team_name);
 end:
 	close(g_lemipc.fd);
-	shm_unlink(PRG_NAME);
+//	TODO: only unlink if last player
+//	shm_unlink(PRG_NAME);
 	return (ret);
 }
 
