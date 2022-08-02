@@ -13,14 +13,20 @@
 
 # define PRG_NAME "lemipc"
 
-typedef struct	s_lemipc {
+typedef struct	s_lemipc
+{
 	int			fd;
 	size_t		size;
 	void		*addr;
 }				t_lemipc;
 
-typedef struct	s_game {
-	uint8_t		map[10][10];
+# define HEIGHT	25
+# define WIDTH	50
+
+typedef struct	s_game
+{
+	int			nb_player;
+	uint8_t		map[HEIGHT][WIDTH];
 }				t_game;
 
 #endif

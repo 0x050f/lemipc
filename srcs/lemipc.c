@@ -21,10 +21,25 @@ int			create_game(int fd)
 		dprintf(STDERR_FILENO, "%s: mmap(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
 	}
-	uint8_t *map = (uint8_t *)((t_game *)addr)->map;
-	for (size_t i = 0; i < sizeof(((t_game *)0)->map); i++)
-			map[i] = '0';
+	memset(addr, 0, size);
+	t_game *game = addr;
+	/* Init map */
+	for (size_t y = 0; y < HEIGHT; y++)
+	{
+		for (size_t x = 0; x < WIDTH; x++)
+			game->map[y][x] = '0';
+	}
 	return (size);
+}
+
+void		show_map(uint8_t map[HEIGHT][WIDTH])
+{
+	for (size_t y = 0; y < HEIGHT; y++)
+	{
+		for (size_t x = 0; x < WIDTH; x++)
+			printf("%c", map[y][x]);
+		printf("\n");
+	}
 }
 
 int			join_game(int fd, size_t size, char *team_name)
@@ -36,11 +51,10 @@ int			join_game(int fd, size_t size, char *team_name)
 		dprintf(STDERR_FILENO, "%s: mmap(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
 	}
-	for (size_t i = 0; i < sizeof(((t_game *)0)->map); i++)
-		printf("%02x", ((char *)addr)[i]);
-	printf("\n");
+	t_game *game = addr;
+	show_map(game->map);
 //	sprintf(addr, "Bonjour bonjour");
-	sleep(10);
+//	sleep(10);
 	//
 	if (munmap(addr, size) < 0)
 	{
