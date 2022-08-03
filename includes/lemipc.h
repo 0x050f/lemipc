@@ -27,6 +27,7 @@ typedef struct	s_lemipc
 	int			pos_x;
 	int			pos_y;
 	uint8_t		*chatbox;
+	size_t		cursor;
 }				t_lemipc;
 
 # define HEIGHT	10

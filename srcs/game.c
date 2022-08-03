@@ -119,7 +119,7 @@ void		show_chatbox(uint8_t *chatbox)
 			else if (y == 0 || y == CHAT_HEIGHT)
 				printf("─");
 			else
-				printf("%c", chatbox[(x - 1) + (y - 1) * ((WIDTH - 1) * 2)]);
+				printf("%c", chatbox[(x - 1) + (y - 1) * ((WIDTH * 2) - 1)]);
 		}
 		printf("\n");
 	}
@@ -181,7 +181,11 @@ void		recv_msg(sigval_t sv)
 		goto end;
 	}
 	// TODO: put in chatbox and action if needed
-	memcpy(g_lemipc.chatbox, buffer, nr);
+	memcpy(g_lemipc.chatbox + g_lemipc.cursor, buffer, nr);
+	g_lemipc.cursor += nr;
+	size_t size_to_add = ((WIDTH * 2) - 1) - (nr % ((WIDTH * 2) - 1));
+	memset(g_lemipc.chatbox + g_lemipc.cursor, ' ', size_to_add);
+	g_lemipc.cursor += size_to_add;
 	show_game(g_lemipc.addr, g_lemipc.chatbox);
 	end:
 		free(buffer);
@@ -223,14 +227,14 @@ int			join_game(int shm_fd, int mq_fd, size_t size, int team_number)
 			return (EXIT_FAILURE);
 		}
 	}
-	g_lemipc.chatbox = malloc((((CHAT_HEIGHT - 1) * ((WIDTH - 1) * 2) + 1) * sizeof(uint8_t)));
+	g_lemipc.chatbox = malloc((CHAT_HEIGHT - 1) * ((WIDTH * 2) - 1) * sizeof(uint8_t));
 	if (!g_lemipc.chatbox)
 	{
 		dprintf(STDERR_FILENO, "%s: malloc(): %s\n", PRG_NAME, strerror(errno));
 		munmap(g_lemipc.addr, size);
 		return (EXIT_FAILURE);
 	}
-	memset(g_lemipc.chatbox, ' ', (((CHAT_HEIGHT - 1) * ((WIDTH - 1) * 2) + 1) * sizeof(uint8_t)));
+	memset(g_lemipc.chatbox, 'a', (CHAT_HEIGHT - 1) * ((WIDTH * 2) - 1) * sizeof(uint8_t));
 	t_game *game = g_lemipc.addr;
 
 	printf("boop\n");
@@ -250,8 +254,9 @@ int			join_game(int shm_fd, int mq_fd, size_t size, int team_number)
 	if (sem_wait(&game->sem_game) < 0)
 		dprintf(STDERR_FILENO, "%s: sem_wait(): %s\n", PRG_NAME, strerror(errno));
 	game->nb_players++;
-	printf("Joined as player !\n");
-	// TODO: show chat and map and enter in room
+	char buf[256];
+	sprintf(buf, "Player has joined team %d", team_number);
+	send_msg(mq_fd, buf, strlen(buf));
 	time_t t;
 
 	srand((unsigned) time(&t));
@@ -267,7 +272,6 @@ int			join_game(int shm_fd, int mq_fd, size_t size, int team_number)
 			dprintf(STDERR_FILENO, "%s: sem_post(): %s\n", PRG_NAME, strerror(errno));
 		show_game(game, g_lemipc.chatbox);
 		printf("Waiting... (Min 2 teams and 4 players)\n");
-		send_msg(mq_fd, "loolz", 5);
 		sleep(100);
 		if (sem_wait(&game->sem_game) < 0)
 			dprintf(STDERR_FILENO, "%s: sem_wait(): %s\n", PRG_NAME, strerror(errno));

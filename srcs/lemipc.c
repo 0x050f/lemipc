@@ -125,5 +125,6 @@ int			main(int argc, char *argv[])
 	g_lemipc.size = 0;
 	g_lemipc.addr = NULL;
 	g_lemipc.chatbox = NULL;
+	g_lemipc.cursor = 0;
 	return (lemipc(team_number));
 }
