@@ -26,6 +26,7 @@ typedef struct	s_lemipc
 	void		*addr;
 	int			pos_x;
 	int			pos_y;
+	uint8_t		*chatbox;
 }				t_lemipc;
 
 # define HEIGHT	10
@@ -37,9 +38,8 @@ typedef struct	s_lemipc
 
 typedef struct	s_game
 {
-	sem_t		sem_player;
-	sem_t		sem_map;
-	int			nb_player;
+	sem_t		sem_game;
+	int			nb_players;
 	int			pos_x_turn;
 	int			pos_y_turn;
 	uint8_t		map[HEIGHT][WIDTH];

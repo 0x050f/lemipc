@@ -124,5 +124,6 @@ int			main(int argc, char *argv[])
 	g_lemipc.mq_fd = -1;
 	g_lemipc.size = 0;
 	g_lemipc.addr = NULL;
+	g_lemipc.chatbox = NULL;
 	return (lemipc(team_number));
 }
