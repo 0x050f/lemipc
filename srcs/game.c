@@ -3,26 +3,28 @@
 int			create_game(int fd)
 {
 	printf("Creating the game...\n");
-	size_t	size = size = align_up(sizeof(t_game), getpagesize());
-	if (ftruncate(fd, size) < 0)
+	g_lemipc.size = align_up(sizeof(t_game), getpagesize());
+	if (ftruncate(fd, g_lemipc.size) < 0)
 	{
 		dprintf(STDERR_FILENO, "%s: ftruncate(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
 	}
-	void *addr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (addr == MAP_FAILED)
+	g_lemipc.addr = mmap(0, g_lemipc.size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (g_lemipc.addr == MAP_FAILED)
 	{
 		dprintf(STDERR_FILENO, "%s: mmap(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
 	}
+	printf("game: %p\n", g_lemipc.addr);
+	printf("size: %ld\n", g_lemipc.size);
 	/* Init mem */
-	memset(addr, 0, size);
+	memset(g_lemipc.addr, 0, g_lemipc.size);
 	/* Init map */
-	t_game *game = addr;
+	t_game *game = g_lemipc.addr;
 	if (sem_init(&game->sem_player, 1, 1) < 0)
 	{
 		dprintf(STDERR_FILENO, "%s: sem_init(): %s\n", PRG_NAME, strerror(errno));
-		munmap(addr, size);
+		munmap(g_lemipc.addr, g_lemipc.size);
 		return (EXIT_FAILURE);
 	}
 	if (sem_wait(&game->sem_player) < 0)
@@ -31,14 +33,14 @@ int			create_game(int fd)
 	{
 		dprintf(STDERR_FILENO, "%s: sem_init(): %s\n", PRG_NAME, strerror(errno));
 		sem_destroy(&game->sem_player);
-		munmap(addr, size);
+		munmap(g_lemipc.addr, g_lemipc.size);
 		return (EXIT_FAILURE);
 	}
 	if (sem_wait(&game->sem_map) < 0)
 		dprintf(STDERR_FILENO, "%s: sem_wait(): %s\n", PRG_NAME, strerror(errno));
 	game->nb_player = 0;
-	game->x_playing = -1;
-	game->y_playing = -1;
+	game->pos_x_turn = -1;
+	game->pos_y_turn = -1;
 	for (size_t y = 0; y < HEIGHT; y++)
 	{
 		for (size_t x = 0; x < WIDTH; x++)
@@ -48,19 +50,13 @@ int			create_game(int fd)
 		dprintf(STDERR_FILENO, "%s: sem_post(): %s\n", PRG_NAME, strerror(errno));
 	if (sem_post(&game->sem_map) < 0)
 		dprintf(STDERR_FILENO, "%s: sem_post(): %s\n", PRG_NAME, strerror(errno));
-	return (size);
-}
-
-void		destroy_game(t_game *game)
-{
-	sem_destroy(&game->sem_player);
-	sem_destroy(&game->sem_map);
+	return (g_lemipc.size);
 }
 
 void		show_map(t_game *game)
 {
 	printf("\033[2J\033[H"); /* clear screen + top */
-	printf("x: %d - y: %d\n", g_lemipc.x, g_lemipc.y);
+	printf("x: %d - y: %d\n", g_lemipc.pos_x, g_lemipc.pos_y);
 	for (size_t x = 0; x <= WIDTH * 2; x++)
 	{
 		if (x == 0)
@@ -78,9 +74,9 @@ void		show_map(t_game *game)
 		printf("│");
 		for (size_t x = 0; x < WIDTH; x++)
 		{
-			if (x == (size_t)game->x_playing && y == (size_t)game->y_playing)
+			if (x == (size_t)game->pos_x_turn && y == (size_t)game->pos_y_turn)
 				printf("\e[5m", game->map[y][x]);
-			if (x == (size_t)g_lemipc.x && y == (size_t)g_lemipc.y)
+			if (x == (size_t)g_lemipc.pos_x && y == (size_t)g_lemipc.pos_y)
 				printf("\e[31m", game->map[y][x]);
 			printf("%c\e[0m│", game->map[y][x]);
 		}
@@ -168,20 +164,18 @@ int			count_nb_team(t_game *game)
 int			join_game(int shm_fd, int mq_fd, size_t size, int team_number)
 {
 	(void)mq_fd;
-	void *addr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-	if (addr == MAP_FAILED)
+	g_lemipc.size = size;
+	if (!g_lemipc.addr)
 	{
-		dprintf(STDERR_FILENO, "%s: mmap(): %s\n", PRG_NAME, strerror(errno));
-		return (EXIT_FAILURE);
+		g_lemipc.addr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+		if (g_lemipc.addr == MAP_FAILED)
+		{
+			dprintf(STDERR_FILENO, "%s: mmap(): %s\n", PRG_NAME, strerror(errno));
+			return (EXIT_FAILURE);
+		}
 	}
-	g_lemipc.addr = addr;
-	t_game *game = addr;
-/*
-	destroy_game(game);
-	mq_unlink("/"PRG_NAME);
-	shm_unlink(PRG_NAME);
-	exit(0);
-*/
+	t_game *game = g_lemipc.addr;
+
 	show_map(game);
 	show_chatbox();
 	printf("Waiting to join the game...\n");
@@ -200,11 +194,11 @@ int			join_game(int shm_fd, int mq_fd, size_t size, int team_number)
 
 	srand((unsigned) time(&t));
 	do {
-		g_lemipc.x = rand() % WIDTH;
-		g_lemipc.y = rand() % HEIGHT;
+		g_lemipc.pos_x = rand() % WIDTH;
+		g_lemipc.pos_y = rand() % HEIGHT;
 	}
-	while (game->map[g_lemipc.y][g_lemipc.x] != ' ');
-	game->map[g_lemipc.y][g_lemipc.x] = team_number + '0';
+	while (game->map[g_lemipc.pos_y][g_lemipc.pos_x] != ' ');
+	game->map[g_lemipc.pos_y][g_lemipc.pos_x] = team_number + '0';
 	if (sem_post(&game->sem_map) < 0)
 		dprintf(STDERR_FILENO, "%s: sem_wait(): %s\n", PRG_NAME, strerror(errno));
 	while (count_nb_team(game) < 2 || game->nb_player < 4)
@@ -255,9 +249,17 @@ int			join_game(int shm_fd, int mq_fd, size_t size, int team_number)
 			dprintf(STDERR_FILENO, "%s: mq_send(): %s\n", PRG_NAME, strerror(errno));
 		*/
 	}
+	return (exit_game(game, size));
+}
+
+int		exit_game(t_game *game, size_t size)
+{
 	int ret = EXIT_SUCCESS;
 	if (game->nb_player == 1)
-		destroy_game(game);
+	{
+		sem_destroy(&game->sem_player);
+		sem_destroy(&game->sem_map);
+	}
 	else
 	{
 		if (sem_wait(&game->sem_player) < 0)
@@ -265,9 +267,14 @@ int			join_game(int shm_fd, int mq_fd, size_t size, int team_number)
 		game->nb_player--;
 		if (sem_post(&game->sem_player) < 0)
 			dprintf(STDERR_FILENO, "%s: sem_post(): %s\n", PRG_NAME, strerror(errno));
+		if (sem_wait(&game->sem_map) < 0)
+			dprintf(STDERR_FILENO, "%s: sem_wait(): %s\n", PRG_NAME, strerror(errno));
+		game->map[g_lemipc.pos_y][g_lemipc.pos_x] = ' ';
+		if (sem_post(&game->sem_map) < 0)
+			dprintf(STDERR_FILENO, "%s: sem_post(): %s\n", PRG_NAME, strerror(errno));
 		ret = END;
 	}
-	if (munmap(addr, size) < 0)
+	if (munmap(game, size) < 0)
 		dprintf(STDERR_FILENO, "%s: munmap(): %s\n", PRG_NAME, strerror(errno));
 	return (ret);
 }

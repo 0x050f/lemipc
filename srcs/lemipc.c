@@ -22,37 +22,14 @@ void		msg_rcv(sigval_t sv)
 void		signal_handler(int signum)
 {
 	(void)signum;
-	bool end = false;
+	int end = EXIT_SUCCESS;
 	if (g_lemipc.addr)
-	{
-		t_game *game = g_lemipc.addr;
-		if (game->nb_player == 1)
-		{
-			printf("DESTROY GAME\n");
-			destroy_game(game);
-			end = true;
-		}
-		else
-		{
-			if (sem_wait(&game->sem_player) < 0)
-				dprintf(STDERR_FILENO, "%s: sem_wait(): %s\n", PRG_NAME, strerror(errno));
-			game->nb_player--;
-			if (sem_post(&game->sem_player) < 0)
-				dprintf(STDERR_FILENO, "%s: sem_post(): %s\n", PRG_NAME, strerror(errno));
-			if (sem_wait(&game->sem_map) < 0)
-				dprintf(STDERR_FILENO, "%s: sem_wait(): %s\n", PRG_NAME, strerror(errno));
-			game->map[g_lemipc.y][g_lemipc.x] = ' ';
-			if (sem_post(&game->sem_map) < 0)
-				dprintf(STDERR_FILENO, "%s: sem_post(): %s\n", PRG_NAME, strerror(errno));
-		}
-	}
-	if (g_lemipc.addr)
-		munmap(g_lemipc.addr, g_lemipc.size);
+		end = exit_game(g_lemipc.addr, g_lemipc.size);
 	if (g_lemipc.shm_fd >= 0)
 		close(g_lemipc.shm_fd);
 	if (g_lemipc.mq_fd >= 0)
 		mq_close(g_lemipc.mq_fd);
-	if (end)
+	if (end == END)
 	{
 		mq_unlink("/"PRG_NAME);
 		shm_unlink(PRG_NAME);

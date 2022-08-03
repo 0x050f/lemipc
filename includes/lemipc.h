@@ -24,8 +24,8 @@ typedef struct	s_lemipc
 	int			mq_fd;
 	size_t		size;
 	void		*addr;
-	int			x;
-	int			y;
+	int			pos_x;
+	int			pos_y;
 }				t_lemipc;
 
 # define HEIGHT	10
@@ -40,8 +40,8 @@ typedef struct	s_game
 	sem_t		sem_player;
 	sem_t		sem_map;
 	int			nb_player;
-	int			x_playing;
-	int			y_playing;
+	int			pos_x_turn;
+	int			pos_y_turn;
 	uint8_t		map[HEIGHT][WIDTH];
 }				t_game;
 
@@ -50,7 +50,7 @@ extern t_lemipc	g_lemipc;
 /* game.c */
 int			create_game(int fd);
 int			join_game(int shm_fd, int mq_fd, size_t size, int team_number);
-void		destroy_game(t_game *game);
+int			exit_game(t_game *game, size_t size);
 
 /* utils.c */
 size_t		align_up(size_t size, size_t align);
