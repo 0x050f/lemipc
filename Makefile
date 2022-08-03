@@ -23,7 +23,7 @@ endif
 all:		$(NAME)
 
 $(NAME):	$(OBJS) $(addprefix $(DIR_HEADERS), $(INCLUDES))
-			$(CC) $(CC_FLAGS) -I $(DIR_HEADERS) $(OBJS) -o $(NAME) -lrt
+			$(CC) $(CC_FLAGS) -I $(DIR_HEADERS) $(OBJS) -o $(NAME) -lrt -pthread
 
 $(OBJS):	| $(DIR_OBJS)
 
