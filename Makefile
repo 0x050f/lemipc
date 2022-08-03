@@ -5,7 +5,9 @@ DIR_HEADERS	=	./includes/
 DIR_SRCS	=	./srcs/
 DIR_OBJS	=	./compiled_srcs/
 
-SRCS		=	lemipc.c
+SRCS		=	lemipc.c \
+				game.c \
+				utils.c
 
 INCLUDES	=	lemipc.h
 

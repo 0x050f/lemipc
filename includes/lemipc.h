@@ -45,4 +45,14 @@ typedef struct	s_game
 	uint8_t		map[HEIGHT][WIDTH];
 }				t_game;
 
+extern t_lemipc	g_lemipc;
+
+/* game.c */
+int			create_game(int fd);
+int			join_game(int shm_fd, int mq_fd, size_t size, int team_number);
+void		destroy_game(t_game *game);
+
+/* utils.c */
+size_t		align_up(size_t size, size_t align);
+
 #endif
