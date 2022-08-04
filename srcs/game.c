@@ -2,16 +2,27 @@
 
 int		play_game(struct ipc *ipc)
 {
+	/*
+	sem_lock(ipc->sem_id[PLAYERS]);
+	do {
+		sem_lock(ipc->sem_id[MAP]);
+		
+		sem_unlock(ipc->sem_id[PLAYERS]);
+		sleep(1);
+	}
+	while ();
+	sem_unlock(ipc->sem_id[PLAYERS]);
+	*/
 	recv_msg(ipc);
 	show_game(ipc);
-	sleep(100);
+	sleep(1);
 	return (EXIT_SUCCESS);
 }
 
 int		setup_chatbox(struct ipc *ipc)
 {
 	size_t chatbox_size = (CHAT_HEIGHT - 1) * ((WIDTH * 2) - 1) * sizeof(uint8_t);
-	ipc->chatbox = malloc(chatbox_size);	
+	ipc->chatbox = malloc(chatbox_size);
 	if (!ipc->chatbox)
 	{
 		dprintf(STDERR_FILENO, "%s: malloc(): %s\n", PRG_NAME, strerror(errno));
