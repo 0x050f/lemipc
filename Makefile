@@ -8,6 +8,7 @@ DIR_OBJS	=	./compiled_srcs/
 SRCS		=	lemipc.c \
 				screen.c \
 				game.c \
+				msg.c \
 				utils.c
 
 INCLUDES	=	lemipc.h

@@ -104,9 +104,9 @@ void		append_msg_chatbox(uint8_t *chatbox, char *msg, size_t size)
 
 void		show_game(struct ipc *ipc)
 {
-	sem_lock(ipc->sem_id);
+	sem_lock(ipc->sem_id[MAP]);
 	show_map(ipc->game, &ipc->player);
-	sem_unlock(ipc->sem_id);
+	sem_unlock(ipc->sem_id[MAP]);
 	if (ipc->chatbox)
 		show_chatbox(ipc->chatbox);
 }

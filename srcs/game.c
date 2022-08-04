@@ -2,6 +2,7 @@
 
 int		play_game(struct ipc *ipc)
 {
+	recv_msg(ipc);
 	show_game(ipc);
 	sleep(100);
 	return (EXIT_SUCCESS);
@@ -35,6 +36,7 @@ int		create_game(struct ipc *ipc)
 
 int		join_game(struct ipc *ipc)
 {
+	char			buf[256];
 	struct game		*game;
 	struct player	*player;
 	pid_t			pid;
@@ -43,17 +45,19 @@ int		join_game(struct ipc *ipc)
 	player = &ipc->player;
 	game = ipc->game;
 	pid = getpid();
-	sem_lock(ipc->sem_id);
+	sem_lock(ipc->sem_id[PLAYERS]);
 	size_t i = 0;
 	while (i < MAX_PLAYERS && game->players[i] != -1)
 		i++;
 	if (i == MAX_PLAYERS)
 	{
-		sem_unlock(ipc->sem_id);
+		sem_unlock(ipc->sem_id[PLAYERS]);
 		dprintf(STDERR_FILENO, "Game is full\n");
 		return (EXIT_FAILURE);
 	}
 	game->nb_players++;
+	sem_unlock(ipc->sem_id[PLAYERS]);
+	sem_lock(ipc->sem_id[MAP]);
 	game->players[i] = pid;
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
 	srand((unsigned) time(&t));
@@ -63,25 +67,32 @@ int		join_game(struct ipc *ipc)
 	}
 	while (game->map[player->pos_y][player->pos_x] != ' ');
 	game->map[player->pos_y][player->pos_x] = player->team + '0';
-	sem_unlock(ipc->sem_id);
+	sem_unlock(ipc->sem_id[MAP]);
+	sprintf(buf, "Player joined team %d", player->team);
+	send_msg_broadcast(ipc, buf, strlen(buf));
 	return (play_game(ipc));
 }
 
 int		exit_game(struct ipc *ipc)
 {
-	sem_lock(ipc->sem_id);
+	sem_lock(ipc->sem_id[PLAYERS]);
 	if (ipc->game->nb_players)
 		ipc->game->nb_players--;
+	int nb_players = ipc->game->nb_players;
+	sem_unlock(ipc->sem_id[PLAYERS]);
+	sem_lock(ipc->sem_id[MAP]);
 	ipc->game->map[ipc->player.pos_y][ipc->player.pos_x] = ' ';
-	if (!ipc->game->nb_players)
+	if (!nb_players)
 	{
 		shmdt(ipc->game);
-		semctl(ipc->sem_id, IPC_RMID, 0);
+		msgctl(ipc->mq_id, IPC_RMID, 0);
+		semctl(ipc->sem_id[MAP], IPC_RMID, 0);
+		semctl(ipc->sem_id[PLAYERS], IPC_RMID, 0);
 		shmctl(ipc->shm_id, IPC_RMID, 0);
 		return (EXIT_SUCCESS);
 	}
+	sem_unlock(ipc->sem_id[MAP]);
 	shmdt(ipc->game);
-	sem_unlock(ipc->sem_id);
 	free(ipc->chatbox);
 	return (EXIT_SUCCESS);
 }
