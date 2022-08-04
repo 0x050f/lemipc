@@ -1,6 +1,29 @@
-#include "lemipc.h"
+#include <lemipc.h>
 
-size_t		align_up(size_t size, size_t align)
+int		sem_lock(int sem_id)
 {
-	return (size + (align - (size % align)));
+	struct sembuf sem_b;
+	sem_b.sem_num = 0;
+	sem_b.sem_op = -1;
+	sem_b.sem_flg = 0;
+	if (semop(sem_id, &sem_b, 1) < 0)
+	{
+		dprintf(STDERR_FILENO, "%s: semop(): %s\n", PRG_NAME, strerror(errno));
+		return(EXIT_FAILURE);
+	}
+	return(EXIT_SUCCESS);
+}
+
+int		sem_unlock(int sem_id)
+{
+	struct sembuf sem_b;
+	sem_b.sem_num = 0;
+	sem_b.sem_op = 1;
+	sem_b.sem_flg = 0;
+	if (semop(sem_id, &sem_b, 1) < 0)
+	{
+		dprintf(STDERR_FILENO, "%s: semop(): %s\n", PRG_NAME, strerror(errno));
+		return(EXIT_FAILURE);
+	}
+	return(EXIT_SUCCESS);
 }

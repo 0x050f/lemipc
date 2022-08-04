@@ -1,103 +1,66 @@
 #include "lemipc.h"
 
-t_lemipc	g_lemipc;
-
-/* TODO:
-void		msg_rcv(sigval_t sv)
-{
-	struct mq_attr attr;
-	ssize_t nr;
-	int mq_fd = *((mqd_t *) sv.sival_ptr);
-
-	if (mq_getattr(mq_fd, &attr) == -1)
-		dprintf(STDERR_FILENO, "%s: mq_getattr(): %s\n", PRG_NAME, strerror(errno));
-	char buf[attr.mq_msgsize];
-	nr = mq_receive(mq_fd, buf, attr.mq_msgsize, NULL);
-	if (nr == -1)
-		dprintf(STDERR_FILENO, "%s: mq_received(): %s\n", PRG_NAME, strerror(errno));
-	printf("Read %zd bytes from MQ: %.*s\n", nr, nr, buf);
-}
-*/
+struct ipc	g_ipc;
 
 void		signal_handler(int signum)
 {
 	(void)signum;
-	int end = EXIT_SUCCESS;
-	if (g_lemipc.addr)
-		end = exit_game(g_lemipc.addr, g_lemipc.size);
-	if (g_lemipc.shm_fd >= 0)
-		close(g_lemipc.shm_fd);
-	if (g_lemipc.mq_fd >= 0)
-		mq_close(g_lemipc.mq_fd);
-	if (end == END)
-	{
-		mq_unlink("/"PRG_NAME);
-		shm_unlink(PRG_NAME);
-	}
+	if (g_ipc.game)
+		shmdt(g_ipc.game);
 	printf("\b\bLeaving the game...\n");
 	exit(EXIT_SUCCESS);
 }
-int			lemipc(int team_number)
-{
-	int		ret;
-	struct	stat sb;
 
+int			create_ipc(struct ipc *ipc, key_t key)
+{
+	ipc->shm_id = shmget(key, sizeof(struct game), IPC_CREAT | SHM_R | SHM_W);
+	if (ipc->shm_id < 0)
+	{
+		dprintf(STDERR_FILENO, "%s: shmget(): %s\n", PRG_NAME, strerror(errno));
+		return (EXIT_FAILURE);
+	}
+	ipc->sem_id = semget(key, 1, IPC_CREAT | SHM_R | SHM_W);
+	if (ipc->sem_id < 0)
+	{
+		dprintf(STDERR_FILENO, "%s: semget(): %s\n", PRG_NAME, strerror(errno));
+		shmctl(ipc->shm_id, IPC_RMID, 0);
+		return (EXIT_FAILURE);
+	}
+	return (EXIT_SUCCESS);
+}
+
+int			lemipc(struct ipc *ipc)
+{
+	key_t			key;
+
+//	semctl(0, IPC_RMID, 0);
+//	shmctl(39, IPC_RMID, 0);
+//	exit(0);
 	if (signal(SIGINT, signal_handler) == SIG_ERR)
 	{
 		dprintf(STDERR_FILENO, "%s: signal(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
 	}
-	if ((g_lemipc.shm_fd = shm_open(PRG_NAME, O_CREAT | O_RDWR, 0644)) < 0)
+	if ((key = ftok("/tmp", 42)) < 0)
 	{
-		dprintf(STDERR_FILENO, "%s: shm_open(): %s\n", PRG_NAME, strerror(errno));
+		dprintf(STDERR_FILENO, "%s: ftok(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
 	}
-	char mq_name[256];
-	sprintf(mq_name, "/%s%d", PRG_NAME, getpid());
-	if ((g_lemipc.mq_fd = mq_open(mq_name, O_CREAT | O_RDWR, 0644, NULL)) < 0)
-	{
-		dprintf(STDERR_FILENO, "%s: mq_open(): %s\n", PRG_NAME, strerror(errno));
-		close(g_lemipc.shm_fd);
-		return (EXIT_FAILURE);
-	}
-	/* TODO:
-	struct sigevent sev;
-
-	sev.sigev_notify = SIGEV_THREAD;
-	sev.sigev_notify_function = msg_rcv;
-	sev.sigev_notify_attributes = NULL;
-	sev.sigev_value.sival_ptr = &g_lemipc.mq_fd;
-	if (mq_notify(g_lemipc.mq_fd, &sev) == -1)
-	{
-		dprintf(STDERR_FILENO, "%s: mq_notify(): %s\n", PRG_NAME, strerror(errno));
-		close(g_lemipc.shm_fd);
-		mq_close(g_lemipc.mq_fd);
-		return (EXIT_FAILURE);
-	}
-	*/
-	if (fstat(g_lemipc.shm_fd, &sb) < 0)
-	{
-		dprintf(STDERR_FILENO, "%s: fstat(): %s\n", PRG_NAME, strerror(errno));
-		ret = EXIT_FAILURE;
-		goto end;
-	}
-	if (!sb.st_size)
-	{
-		if ((ret = create_game(g_lemipc.shm_fd)) == EXIT_FAILURE)
-			goto end;
-		ret = join_game(g_lemipc.shm_fd, g_lemipc.mq_fd, ret, team_number);
+	/* not exist */
+	if ((ipc->sem_id = semget(key, 0, 0)) < 0) {
+		if (create_ipc(ipc, key) == EXIT_FAILURE)
+			return (EXIT_FAILURE);
+		create_game(ipc);
+		sem_unlock(ipc->sem_id);
 	}
 	else
-		ret = join_game(g_lemipc.shm_fd, g_lemipc.mq_fd, sb.st_size, team_number);
-end:
-	mq_close(g_lemipc.mq_fd);
-	close(g_lemipc.shm_fd);
-	if (ret == END)
-	{
-		shm_unlink(PRG_NAME);
-		ret = EXIT_SUCCESS;
-	}
-	return (ret);
+		ipc->shm_id = shmget(key, 0, 0);
+	printf("shm_id: %d\n", ipc->shm_id);
+	printf("sem_id: %d\n", ipc->sem_id);
+//	sleep(40);
+	semctl(ipc->sem_id, IPC_RMID, 0);
+	shmctl(ipc->shm_id, IPC_RMID, 0);
+	return (EXIT_SUCCESS);
 }
 
 bool		check_args(int argc, char *argv[])
@@ -120,11 +83,9 @@ int			main(int argc, char *argv[])
 {
 	if (!check_args(argc, argv))
 		return (EXIT_FAILURE);
-	int team_number = atoi(argv[1]);
-	g_lemipc.shm_fd = -1;
-	g_lemipc.mq_fd = -1;
-	g_lemipc.size = 0;
-	g_lemipc.addr = NULL;
-	g_lemipc.chatbox = NULL;
-	return (lemipc(team_number));
+	g_ipc.player.team = atoi(argv[1]);
+	g_ipc.shm_id = -1;
+	g_ipc.sem_id = -1;
+	g_ipc.game = NULL;
+	return (lemipc(&g_ipc));
 }
