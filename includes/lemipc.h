@@ -11,23 +11,32 @@
 # include <stdint.h>
 # include <stdio.h>
 # include <string.h>
+# include <sys/ipc.h>
 # include <sys/mman.h>
+# include <sys/msg.h>
 # include <sys/stat.h>
+# include <sys/types.h>
 # include <time.h>
 # include <unistd.h>
 
 # define PRG_NAME "lemipc"
 
+struct			msgbuf
+{
+	long		mtype;
+	char		*mtext;
+};
+
 typedef struct	s_lemipc
 {
+	int			team_number;
 	int			shm_fd;
 	int			mq_fd;
-	size_t		size;
 	void		*addr;
+	size_t		size;
 	int			pos_x;
 	int			pos_y;
 	uint8_t		*chatbox;
-	size_t		cursor;
 }				t_lemipc;
 
 # define HEIGHT	10
@@ -37,10 +46,13 @@ typedef struct	s_lemipc
 
 # define END	0xdead
 
+# define MAX_PLAYERS 20
+
 typedef struct	s_game
 {
 	sem_t		sem_game;
 	int			nb_players;
+	pid_t		players[MAX_PLAYERS];
 	int			pos_x_turn;
 	int			pos_y_turn;
 	uint8_t		map[HEIGHT][WIDTH];

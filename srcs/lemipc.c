@@ -52,7 +52,9 @@ int			lemipc(int team_number)
 		dprintf(STDERR_FILENO, "%s: shm_open(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
 	}
-	if ((g_lemipc.mq_fd = mq_open("/"PRG_NAME, O_CREAT | O_RDWR, 0644, NULL)) < 0)
+	char mq_name[256];
+	sprintf(mq_name, "/%s%d", PRG_NAME, getpid());
+	if ((g_lemipc.mq_fd = mq_open(mq_name, O_CREAT | O_RDWR, 0644, NULL)) < 0)
 	{
 		dprintf(STDERR_FILENO, "%s: mq_open(): %s\n", PRG_NAME, strerror(errno));
 		close(g_lemipc.shm_fd);
@@ -92,7 +94,6 @@ end:
 	close(g_lemipc.shm_fd);
 	if (ret == END)
 	{
-		mq_unlink("/"PRG_NAME);
 		shm_unlink(PRG_NAME);
 		ret = EXIT_SUCCESS;
 	}
@@ -125,6 +126,5 @@ int			main(int argc, char *argv[])
 	g_lemipc.size = 0;
 	g_lemipc.addr = NULL;
 	g_lemipc.chatbox = NULL;
-	g_lemipc.cursor = 0;
 	return (lemipc(team_number));
 }

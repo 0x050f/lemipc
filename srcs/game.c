@@ -2,7 +2,6 @@
 
 int			create_game(int fd)
 {
-	printf("Creating the game...\n");
 	g_lemipc.size = align_up(sizeof(t_game), getpagesize());
 	if (ftruncate(fd, g_lemipc.size) < 0)
 	{
@@ -27,6 +26,8 @@ int			create_game(int fd)
 	}
 	if (sem_wait(&game->sem_game) < 0)
 		dprintf(STDERR_FILENO, "%s: sem_wait(): %s\n", PRG_NAME, strerror(errno));
+	for (size_t i = 0; i < MAX_PLAYERS; i++)
+		game->players[i] = -1;
 	game->nb_players = 0;
 	game->pos_x_turn = -1;
 	game->pos_y_turn = -1;
@@ -158,11 +159,30 @@ int			count_nb_team(t_game *game)
 	return (sum);
 }
 
+void		append_msg_chatbox(char *msg, size_t size)
+{
+	static size_t		cursor = 0;
+	size_t cursor_max_size = (CHAT_HEIGHT - 1) * ((WIDTH * 2) - 1);
+	size_t size_to_add = ((WIDTH * 2) - 1) - (size % ((WIDTH * 2) - 1));
+	size_t total_size = size + size_to_add;
+
+	if (cursor + total_size > cursor_max_size)
+	{
+		memmove(g_lemipc.chatbox, g_lemipc.chatbox + total_size, (cursor_max_size - total_size));
+		cursor = (cursor_max_size - total_size);
+	}
+	memcpy(g_lemipc.chatbox + cursor, msg, size);
+	cursor += size;
+	memset(g_lemipc.chatbox + cursor, ' ', size_to_add);
+	cursor += size_to_add;
+}
+
 void		recv_msg(sigval_t sv)
 {
 	(void)sv;
 	char *buffer = NULL;
 	struct mq_attr attr;
+	t_game *game = g_lemipc.addr;
 	if (mq_getattr(g_lemipc.mq_fd, &attr) < 0)
 	{
 		dprintf(STDERR_FILENO, "%s: mq_getattr(): %s\n", PRG_NAME, strerror(errno));
@@ -174,49 +194,81 @@ void		recv_msg(sigval_t sv)
 		dprintf(STDERR_FILENO, "%s: malloc(): %s\n", PRG_NAME, strerror(errno));
 		goto end;
 	}
-	int nr = mq_receive(g_lemipc.mq_fd, buffer, attr.mq_msgsize, NULL);
-	if (nr == -1)
+	int nb = attr.mq_curmsgs;
+	while (nb--)
 	{
-		dprintf(STDERR_FILENO, "%s: mq_receive(): %s\n", PRG_NAME, strerror(errno));
-		goto end;
+		int nr = mq_receive(g_lemipc.mq_fd, buffer, attr.mq_msgsize, NULL);
+		if (nr == -1)
+		{
+			dprintf(STDERR_FILENO, "%s: mq_receive(): %s\n", PRG_NAME, strerror(errno));
+			goto end;
+		}
+		append_msg_chatbox(buffer, nr);
 	}
-	// TODO: put in chatbox and action if needed
-	memcpy(g_lemipc.chatbox + g_lemipc.cursor, buffer, nr);
-	g_lemipc.cursor += nr;
-	size_t size_to_add = ((WIDTH * 2) - 1) - (nr % ((WIDTH * 2) - 1));
-	memset(g_lemipc.chatbox + g_lemipc.cursor, ' ', size_to_add);
-	g_lemipc.cursor += size_to_add;
-	show_game(g_lemipc.addr, g_lemipc.chatbox);
+	show_game(game, g_lemipc.chatbox);
 	end:
-		free(buffer);
-		struct sigevent sev;
-		sev.sigev_notify = SIGEV_THREAD;
-		sev.sigev_notify_function = recv_msg;
-		sev.sigev_notify_attributes = NULL;
-		sev.sigev_value.sival_ptr = &g_lemipc.mq_fd;
-		if (mq_notify(g_lemipc.mq_fd, &sev) == -1)
-			dprintf(STDERR_FILENO, "%s: mq_notify(): %s\n", PRG_NAME, strerror(errno));
+	free(buffer);
+	struct sigevent sev;
+	sev.sigev_notify = SIGEV_THREAD;
+	sev.sigev_notify_function = recv_msg;
+	sev.sigev_notify_attributes = NULL;
+	sev.sigev_value.sival_ptr = &g_lemipc.mq_fd;
+	if (mq_notify(g_lemipc.mq_fd, &sev) == -1)
+		dprintf(STDERR_FILENO, "%s: mq_notify(): %s\n", PRG_NAME, strerror(errno));
 }
 
-void		send_msg(int mq_fd, char *msg, size_t size)
+void		send_msg_self(int mq_fd, char *msg, size_t size)
 {
-	struct mq_attr attr;
-	printf("abc\n");
-	if (mq_getattr(mq_fd, &attr) < 0)
-		dprintf(STDERR_FILENO, "%s: mq_getattr(): %s\n", PRG_NAME, strerror(errno));
-	printf("def\n");
-	if (size > (size_t)attr.mq_msgsize)
-	{
-		send_msg(mq_fd, "Message too long!", 17);
-		return ;
-	}
 	if (mq_send(mq_fd, msg, size, 0) < 0)
 		dprintf(STDERR_FILENO, "%s: mq_send(): %s\n", PRG_NAME, strerror(errno));
+}
+
+void		send_msg_broadcast(int mq_fd, char *msg, size_t size)
+{
+	char buf[256];
+	struct mq_attr attr;
+	if (mq_getattr(mq_fd, &attr) < 0)
+		dprintf(STDERR_FILENO, "%s: mq_getattr(): %s\n", PRG_NAME, strerror(errno));
+	if (size > (size_t)attr.mq_msgsize)
+	{
+		sprintf(buf, "SYSTEM: Message too long!");
+		send_msg_self(mq_fd, buf, strlen(buf));
+		return ;
+	}
+	/* TODO: semaphore for players */
+	t_game *game = g_lemipc.addr;
+	pid_t pid = getpid();
+	if (sem_wait(&game->sem_game) < 0)
+		dprintf(STDERR_FILENO, "%s: sem_wait(): %s\n", PRG_NAME, strerror(errno));
+	for (size_t i = 0; i < MAX_PLAYERS; i++)
+	{
+		if (game->players[i] != -1)
+		{
+			sprintf(buf, "/%s%d", PRG_NAME, game->players[i]);
+			if (pid == game->players[i])
+				send_msg_self(mq_fd, msg, size);
+			else
+			{
+				int fd = mq_open(buf, O_WRONLY, 0644, NULL);
+				if (fd < 0)
+				{
+					dprintf(STDERR_FILENO, "%s: mq_open(): %s\n", PRG_NAME, strerror(errno));
+					continue ;
+				}
+				if (mq_send(fd, msg, size, 0) < 0)
+					dprintf(STDERR_FILENO, "%s: mq_send(): %s\n", PRG_NAME, strerror(errno));
+				close(fd);
+			}
+		}
+	}
+	if (sem_post(&game->sem_game) < 0)
+		dprintf(STDERR_FILENO, "%s: sem_post(): %s\n", PRG_NAME, strerror(errno));
 }
 
 int			join_game(int shm_fd, int mq_fd, size_t size, int team_number)
 {
 	(void)mq_fd;
+	g_lemipc.team_number = team_number;
 	g_lemipc.size = size;
 	if (!g_lemipc.addr)
 	{
@@ -234,10 +286,9 @@ int			join_game(int shm_fd, int mq_fd, size_t size, int team_number)
 		munmap(g_lemipc.addr, size);
 		return (EXIT_FAILURE);
 	}
-	memset(g_lemipc.chatbox, 'a', (CHAT_HEIGHT - 1) * ((WIDTH * 2) - 1) * sizeof(uint8_t));
+	memset(g_lemipc.chatbox, ' ', (CHAT_HEIGHT - 1) * ((WIDTH * 2) - 1) * sizeof(uint8_t));
 	t_game *game = g_lemipc.addr;
 
-	printf("boop\n");
 	struct sigevent sev;
 	sev.sigev_notify = SIGEV_THREAD;
 	sev.sigev_notify_function = recv_msg;
@@ -249,14 +300,25 @@ int			join_game(int shm_fd, int mq_fd, size_t size, int team_number)
 //	mq_unlink("/"PRG_NAME);
 //	shm_unlink(PRG_NAME);
 //	exit(0);
-	show_game(game, g_lemipc.chatbox);
-	printf("Waiting to join the game...\n");
 	if (sem_wait(&game->sem_game) < 0)
 		dprintf(STDERR_FILENO, "%s: sem_wait(): %s\n", PRG_NAME, strerror(errno));
+	while (game->nb_players >= MAX_PLAYERS) // WAIT FOR IT
+	{
+		if (sem_post(&game->sem_game) < 0)
+			dprintf(STDERR_FILENO, "%s: sem_post(): %s\n", PRG_NAME, strerror(errno));
+		sleep(1);
+		if (sem_wait(&game->sem_game) < 0)
+			dprintf(STDERR_FILENO, "%s: sem_wait(): %s\n", PRG_NAME, strerror(errno));
+	}
+	for (size_t i = 0; i < MAX_PLAYERS; i++)
+	{
+		if (game->players[i] == -1)
+		{
+			game->players[i] = getpid();
+			break ;
+		}
+	}
 	game->nb_players++;
-	char buf[256];
-	sprintf(buf, "Player has joined team %d", team_number);
-	send_msg(mq_fd, buf, strlen(buf));
 	time_t t;
 
 	srand((unsigned) time(&t));
@@ -266,6 +328,16 @@ int			join_game(int shm_fd, int mq_fd, size_t size, int team_number)
 	}
 	while (game->map[g_lemipc.pos_y][g_lemipc.pos_x] != ' ');
 		game->map[g_lemipc.pos_y][g_lemipc.pos_x] = team_number + '0';
+	if (sem_post(&game->sem_game) < 0)
+		dprintf(STDERR_FILENO, "%s: sem_post(): %s\n", PRG_NAME, strerror(errno));
+	char buf[256];
+	sprintf(buf, "Player has joined team %d", team_number);
+	send_msg_broadcast(mq_fd, buf, strlen(buf));
+	sprintf(buf, "SYSTEM: Waiting... (Min 2 teams and 4 players)", team_number);
+	send_msg_self(mq_fd, buf, strlen(buf));
+	show_game(game, g_lemipc.chatbox);
+	sleep(100);
+	/*
 	while (count_nb_team(game) < 2 || game->nb_players < 2)
 	{
 		if (sem_post(&game->sem_game) < 0)
@@ -299,6 +371,7 @@ int			join_game(int shm_fd, int mq_fd, size_t size, int team_number)
 		if (sem_post(&game->sem_game) < 0)
 			dprintf(STDERR_FILENO, "%s: sem_post(): %s\n", PRG_NAME, strerror(errno));
 	}
+	*/
 	/*
 	struct mq_attr attr;
 	if (mq_getattr(mq_fd, &attr) < 0)
@@ -331,12 +404,26 @@ int		exit_game(t_game *game, size_t size)
 	}
 	else
 	{
+		pid_t pid = getpid();
+		for (size_t i = 0; i < MAX_PLAYERS; i++)
+		{
+			if (game->players[i] == pid)
+			{
+				game->players[i] = -1;
+				break ;
+			}
+		}
 		game->nb_players--;
 		game->map[g_lemipc.pos_y][g_lemipc.pos_x] = ' ';
+		char buf[256];
+		sprintf(buf, "A player from team %d has left", g_lemipc.team_number);
+		send_msg_broadcast(g_lemipc.mq_fd, buf, strlen(buf));
 		if (sem_post(&game->sem_game) < 0)
 			dprintf(STDERR_FILENO, "%s: sem_post(): %s\n", PRG_NAME, strerror(errno));
 	}
-	free(g_lemipc.chatbox);
+	char mq_name[256];
+	sprintf(mq_name, "/%s%d", PRG_NAME, getpid());free(g_lemipc.chatbox);
+	mq_unlink(mq_name);
 	if (munmap(game, size) < 0)
 		dprintf(STDERR_FILENO, "%s: munmap(): %s\n", PRG_NAME, strerror(errno));
 	return (ret);
