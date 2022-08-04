@@ -12,6 +12,7 @@
 # include <sys/shm.h>
 # include <sys/stat.h>
 # include <string.h>
+# include <time.h>
 # include <unistd.h>
 
 # define PRG_NAME	"lemipc"
@@ -31,17 +32,22 @@ struct			ipc
 	struct player	player;
 };
 
-# define HEIGHT		10
-# define WIDTH		35
+# define HEIGHT			10
+# define WIDTH			35
+
+# define MAX_PLAYERS	20
 
 struct			game
 {
 	int			nb_players;
+	pid_t		players[MAX_PLAYERS];
 	uint8_t		map[HEIGHT][WIDTH];
 };
 
 /* game.c */
 int		create_game(struct ipc *ipc);
+int		join_game(struct ipc *ipc);
+int		exit_game(struct ipc *ipc);
 
 /* utils.c */
 int		sem_lock(int sem_id);

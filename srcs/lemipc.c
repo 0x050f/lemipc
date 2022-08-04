@@ -6,7 +6,7 @@ void		signal_handler(int signum)
 {
 	(void)signum;
 	if (g_ipc.game)
-		shmdt(g_ipc.game);
+		exit_game(&g_ipc);
 	printf("\b\bLeaving the game...\n");
 	exit(EXIT_SUCCESS);
 }
@@ -33,9 +33,6 @@ int			lemipc(struct ipc *ipc)
 {
 	key_t			key;
 
-//	semctl(0, IPC_RMID, 0);
-//	shmctl(39, IPC_RMID, 0);
-//	exit(0);
 	if (signal(SIGINT, signal_handler) == SIG_ERR)
 	{
 		dprintf(STDERR_FILENO, "%s: signal(): %s\n", PRG_NAME, strerror(errno));
@@ -46,20 +43,20 @@ int			lemipc(struct ipc *ipc)
 		dprintf(STDERR_FILENO, "%s: ftok(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
 	}
-	/* not exist */
-	if ((ipc->sem_id = semget(key, 0, 0)) < 0) {
+	if ((ipc->sem_id = semget(key, 0, 0)) < 0)
+	{
 		if (create_ipc(ipc, key) == EXIT_FAILURE)
 			return (EXIT_FAILURE);
 		create_game(ipc);
 		sem_unlock(ipc->sem_id);
 	}
 	else
+	{
 		ipc->shm_id = shmget(key, 0, 0);
-	printf("shm_id: %d\n", ipc->shm_id);
-	printf("sem_id: %d\n", ipc->sem_id);
-//	sleep(40);
-	semctl(ipc->sem_id, IPC_RMID, 0);
-	shmctl(ipc->shm_id, IPC_RMID, 0);
+		ipc->game = shmat(ipc->shm_id, NULL, 0);
+	}
+	join_game(ipc);
+	exit_game(ipc);
 	return (EXIT_SUCCESS);
 }
 
@@ -84,6 +81,8 @@ int			main(int argc, char *argv[])
 	if (!check_args(argc, argv))
 		return (EXIT_FAILURE);
 	g_ipc.player.team = atoi(argv[1]);
+	g_ipc.player.pos_x = 0;
+	g_ipc.player.pos_y = 0;
 	g_ipc.shm_id = -1;
 	g_ipc.sem_id = -1;
 	g_ipc.game = NULL;
