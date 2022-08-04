@@ -56,6 +56,7 @@ void	show_game(struct ipc *ipc);
 
 /* game.c */
 int		create_game(struct ipc *ipc);
+int		setup_chatbox(struct ipc *ipc);
 int		join_game(struct ipc *ipc);
 int		exit_game(struct ipc *ipc);
 

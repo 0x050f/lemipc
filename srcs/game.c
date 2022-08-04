@@ -7,6 +7,20 @@ int		play_game(struct ipc *ipc)
 	return (EXIT_SUCCESS);
 }
 
+int		setup_chatbox(struct ipc *ipc)
+{
+	size_t chatbox_size = (CHAT_HEIGHT - 1) * ((WIDTH * 2) - 1) * sizeof(uint8_t);
+	ipc->chatbox = malloc(chatbox_size);	
+	if (!ipc->chatbox)
+	{
+		dprintf(STDERR_FILENO, "%s: malloc(): %s\n", PRG_NAME, strerror(errno));
+		shmdt(ipc->game);
+		return (EXIT_FAILURE);
+	}
+	memset(ipc->chatbox, ' ', chatbox_size);
+	return (EXIT_SUCCESS);
+}
+
 int		create_game(struct ipc *ipc)
 {
 	ipc->game = shmat(ipc->shm_id, NULL, 0);
