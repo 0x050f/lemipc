@@ -1,8 +1,8 @@
-#include <lemipc.h>
+#include "lemipc.h"
 
 int		play_game(struct ipc *ipc)
 {
-	(void)ipc;
+	show_game(ipc);
 	sleep(100);
 	return (EXIT_SUCCESS);
 }
@@ -13,6 +13,9 @@ int		create_game(struct ipc *ipc)
 	ipc->game->nb_players = 0;
 	memset(ipc->game->players, -1, sizeof(ipc->game->players));
 	memset(ipc->game->map, ' ', sizeof(ipc->game->map));
+	ipc->game->player_turn.team = 0;
+	ipc->game->player_turn.pos_x = -1;
+	ipc->game->player_turn.pos_y = -1;
 	return (EXIT_SUCCESS);
 }
 
@@ -36,7 +39,6 @@ int		join_game(struct ipc *ipc)
 		dprintf(STDERR_FILENO, "Game is full\n");
 		return (EXIT_FAILURE);
 	}
-	printf("nb_players\n");
 	game->nb_players++;
 	game->players[i] = pid;
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
@@ -66,5 +68,6 @@ int		exit_game(struct ipc *ipc)
 	}
 	shmdt(ipc->game);
 	sem_unlock(ipc->sem_id);
+	free(ipc->chatbox);
 	return (EXIT_SUCCESS);
 }

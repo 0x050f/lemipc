@@ -1,4 +1,4 @@
-#include <lemipc.h>
+#include "lemipc.h"
 
 int		sem_lock(int sem_id)
 {

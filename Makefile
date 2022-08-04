@@ -6,6 +6,7 @@ DIR_SRCS	=	./srcs/
 DIR_OBJS	=	./compiled_srcs/
 
 SRCS		=	lemipc.c \
+				screen.c \
 				game.c \
 				utils.c
 

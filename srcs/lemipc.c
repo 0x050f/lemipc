@@ -31,6 +31,7 @@ int			create_ipc(struct ipc *ipc, key_t key)
 
 int			lemipc(struct ipc *ipc)
 {
+	size_t			chatbox_size;
 	key_t			key;
 
 	if (signal(SIGINT, signal_handler) == SIG_ERR)
@@ -55,6 +56,15 @@ int			lemipc(struct ipc *ipc)
 		ipc->shm_id = shmget(key, 0, 0);
 		ipc->game = shmat(ipc->shm_id, NULL, 0);
 	}
+	chatbox_size = (CHAT_HEIGHT - 1) * ((WIDTH * 2) - 1) * sizeof(uint8_t);
+	ipc->chatbox = malloc(chatbox_size);	
+	if (!ipc->chatbox)
+	{
+		dprintf(STDERR_FILENO, "%s: malloc(): %s\n", PRG_NAME, strerror(errno));
+		shmdt(ipc->game);
+		return (EXIT_FAILURE);
+	}
+	memset(ipc->chatbox, ' ', chatbox_size);
 	join_game(ipc);
 	exit_game(ipc);
 	return (EXIT_SUCCESS);
@@ -86,5 +96,6 @@ int			main(int argc, char *argv[])
 	g_ipc.shm_id = -1;
 	g_ipc.sem_id = -1;
 	g_ipc.game = NULL;
+	g_ipc.chatbox = NULL;
 	return (lemipc(&g_ipc));
 }
