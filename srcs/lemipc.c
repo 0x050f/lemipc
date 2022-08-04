@@ -11,29 +11,22 @@ void		signal_handler(int signum)
 	exit(EXIT_SUCCESS);
 }
 
-int			create_ipc(struct ipc *ipc, key_t key)
+int			create_ipc(struct ipc *ipc, key_t keys[3])
 {
-	key_t		key2;
-
-	ipc->shm_id = shmget(key, sizeof(struct game), IPC_CREAT | SHM_R | SHM_W);
+	ipc->shm_id = shmget(keys[0], sizeof(struct game), IPC_CREAT | SHM_R | SHM_W);
 	if (ipc->shm_id < 0)
 	{
 		dprintf(STDERR_FILENO, "%s: shmget(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
 	}
-	ipc->sem_id[MAP] = semget(key, 1, IPC_CREAT | SHM_R | SHM_W);
+	ipc->sem_id[MAP] = semget(keys[0], 1, IPC_CREAT | SHM_R | SHM_W);
 	if (ipc->sem_id[MAP] < 0)
 	{
 		dprintf(STDERR_FILENO, "%s: semget(): %s\n", PRG_NAME, strerror(errno));
 		shmctl(ipc->shm_id, IPC_RMID, 0);
 		return (EXIT_FAILURE);
 	}
-	if ((key2 = ftok("/tmp", 43)) < 0)
-	{
-		dprintf(STDERR_FILENO, "%s: ftok(): %s\n", PRG_NAME, strerror(errno));
-		return (EXIT_FAILURE);
-	}
-	ipc->sem_id[PLAYERS] = semget(key2, 1, IPC_CREAT | SHM_R | SHM_W);
+	ipc->sem_id[PLAYERS] = semget(keys[1], 1, IPC_CREAT | SHM_R | SHM_W);
 	if (ipc->sem_id[PLAYERS] < 0)
 	{
 		dprintf(STDERR_FILENO, "%s: semget(): %s\n", PRG_NAME, strerror(errno));
@@ -41,12 +34,22 @@ int			create_ipc(struct ipc *ipc, key_t key)
 		shmctl(ipc->shm_id, IPC_RMID, 0);
 		return (EXIT_FAILURE);
 	}
-	ipc->mq_id = msgget(key, IPC_CREAT | SHM_R | SHM_W);
+	ipc->sem_id[PLAY] = semget(keys[2], 1, IPC_CREAT | SHM_R | SHM_W);
+	if (ipc->sem_id[PLAYERS] < 0)
+	{
+		dprintf(STDERR_FILENO, "%s: semget(): %s\n", PRG_NAME, strerror(errno));
+		semctl(ipc->sem_id[MAP], IPC_RMID, 0);
+		semctl(ipc->sem_id[PLAYERS], IPC_RMID, 0);
+		shmctl(ipc->shm_id, IPC_RMID, 0);
+		return (EXIT_FAILURE);
+	}
+	ipc->mq_id = msgget(keys[0], IPC_CREAT | SHM_R | SHM_W);
 	if (ipc->mq_id < 0)
 	{
 		dprintf(STDERR_FILENO, "%s: msgget(): %s\n", PRG_NAME, strerror(errno));
 		semctl(ipc->sem_id[MAP], IPC_RMID, 0);
 		semctl(ipc->sem_id[PLAYERS], IPC_RMID, 0);
+		semctl(ipc->sem_id[PLAY], IPC_RMID, 0);
 		shmctl(ipc->shm_id, IPC_RMID, 0);
 		return (EXIT_FAILURE);
 	}
@@ -55,38 +58,37 @@ int			create_ipc(struct ipc *ipc, key_t key)
 
 int			lemipc(struct ipc *ipc)
 {
-	key_t			key;
-	key_t			key2;
+	key_t			keys[3];
 
 	if (signal(SIGINT, signal_handler) == SIG_ERR)
 	{
 		dprintf(STDERR_FILENO, "%s: signal(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
 	}
-	if ((key = ftok("/tmp", 42)) < 0)
+	for (size_t i = 0; i < 3; i++)
 	{
-		dprintf(STDERR_FILENO, "%s: ftok(): %s\n", PRG_NAME, strerror(errno));
-		return (EXIT_FAILURE);
-	}
-	if ((ipc->sem_id[MAP] = semget(key, 0, 0)) < 0)
-	{
-		if (create_ipc(ipc, key) == EXIT_FAILURE)
-			return (EXIT_FAILURE);
-		create_game(ipc);
-		sem_unlock(ipc->sem_id[MAP]);
-		sem_unlock(ipc->sem_id[PLAYERS]);
-	}
-	else
-	{
-		ipc->shm_id = shmget(key, 0, 0);
-		ipc->mq_id = msgget(key, 0);
-		ipc->game = shmat(ipc->shm_id, NULL, 0);
-		if ((key2 = ftok("/tmp", 43)) < 0)
+		if ((keys[i] = ftok("/tmp", i + 42)) < 0)
 		{
 			dprintf(STDERR_FILENO, "%s: ftok(): %s\n", PRG_NAME, strerror(errno));
 			return (EXIT_FAILURE);
 		}
-		ipc->sem_id[PLAYERS] = semget(key2, 0, 0);
+	}
+	if ((ipc->sem_id[MAP] = semget(keys[0], 0, 0)) < 0)
+	{
+		if (create_ipc(ipc, keys) == EXIT_FAILURE)
+			return (EXIT_FAILURE);
+		create_game(ipc);
+		sem_unlock(ipc->sem_id[MAP]);
+		sem_unlock(ipc->sem_id[PLAYERS]);
+		sem_unlock(ipc->sem_id[PLAY]);
+	}
+	else
+	{
+		ipc->shm_id = shmget(keys[0], 0, 0);
+		ipc->mq_id = msgget(keys[0], 0);
+		ipc->game = shmat(ipc->shm_id, NULL, 0);
+		ipc->sem_id[PLAYERS] = semget(keys[1], 0, 0);
+		ipc->sem_id[PLAY] = semget(keys[2], 0, 0);
 	}
 	if (setup_chatbox(ipc) == EXIT_FAILURE)
 		return (EXIT_FAILURE);

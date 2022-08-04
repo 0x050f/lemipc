@@ -88,6 +88,7 @@ int		exit_game(struct ipc *ipc)
 		msgctl(ipc->mq_id, IPC_RMID, 0);
 		semctl(ipc->sem_id[MAP], IPC_RMID, 0);
 		semctl(ipc->sem_id[PLAYERS], IPC_RMID, 0);
+		semctl(ipc->sem_id[PLAY], IPC_RMID, 0);
 		shmctl(ipc->shm_id, IPC_RMID, 0);
 		return (EXIT_SUCCESS);
 	}

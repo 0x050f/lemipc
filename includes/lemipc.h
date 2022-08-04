@@ -30,11 +30,12 @@ struct			player
 
 # define PLAYERS		0
 # define MAP			1
+# define PLAY			2
 
 struct			ipc
 {
 	int				shm_id;
-	int				sem_id[2];
+	int				sem_id[3];
 	int				mq_id;
 	struct game		*game;
 	struct player	player;
