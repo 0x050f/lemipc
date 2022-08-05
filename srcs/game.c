@@ -1,20 +1,38 @@
 #include "lemipc.h"
 
+int		count_nb_teams(struct ipc *ipc)
+{
+	int				sum;
+	int				team_nb[10];
+	struct game		*game;
+
+	memset(team_nb, 0, sizeof(team_nb));
+	game = ipc->game;
+	for (size_t i = 0; i < MAX_PLAYERS; i++)
+	{
+		if (game->players[i].pid != -1)
+			team_nb[game->players[i].team]++;
+	}
+	for (size_t i = 0; i < 10; i++)
+	{
+		if (team_nb[i])
+			sum++;
+	}
+	return (sum);
+}
+
 int		play_game(struct ipc *ipc)
 {
-	/*
 	sem_lock(ipc->sem_id[PLAYERS]);
 	do {
-		sem_lock(ipc->sem_id[MAP]);
-		
+		recv_msg(ipc);
+		show_game(ipc);
 		sem_unlock(ipc->sem_id[PLAYERS]);
 		sleep(1);
+		sem_lock(ipc->sem_id[PLAYERS]);
 	}
-	while ();
+	while (ipc->game->nb_players < 4 || count_nb_teams(ipc) < 2);
 	sem_unlock(ipc->sem_id[PLAYERS]);
-	*/
-	recv_msg(ipc);
-	show_game(ipc);
 	sleep(1);
 	return (EXIT_SUCCESS);
 }
@@ -39,9 +57,7 @@ int		create_game(struct ipc *ipc)
 	ipc->game->nb_players = 0;
 	memset(ipc->game->players, -1, sizeof(ipc->game->players));
 	memset(ipc->game->map, ' ', sizeof(ipc->game->map));
-	ipc->game->player_turn.team = 0;
-	ipc->game->player_turn.pos_x = -1;
-	ipc->game->player_turn.pos_y = -1;
+	ipc->game->player_turn = NULL;
 	return (EXIT_SUCCESS);
 }
 
@@ -50,15 +66,14 @@ int		join_game(struct ipc *ipc)
 	char			buf[256];
 	struct game		*game;
 	struct player	*player;
-	pid_t			pid;
 	time_t			t;
 
 	player = &ipc->player;
 	game = ipc->game;
-	pid = getpid();
+	player->pid = getpid();
 	sem_lock(ipc->sem_id[PLAYERS]);
 	size_t i = 0;
-	while (i < MAX_PLAYERS && game->players[i] != -1)
+	while (i < MAX_PLAYERS && game->players[i].pid != -1)
 		i++;
 	if (i == MAX_PLAYERS)
 	{
@@ -69,7 +84,6 @@ int		join_game(struct ipc *ipc)
 	game->nb_players++;
 	sem_unlock(ipc->sem_id[PLAYERS]);
 	sem_lock(ipc->sem_id[MAP]);
-	game->players[i] = pid;
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
 	srand((unsigned) time(&t));
 	do {
@@ -78,6 +92,7 @@ int		join_game(struct ipc *ipc)
 	}
 	while (game->map[player->pos_y][player->pos_x] != ' ');
 	game->map[player->pos_y][player->pos_x] = player->team + '0';
+	memcpy(&game->players[i], player, sizeof(struct player));
 	sem_unlock(ipc->sem_id[MAP]);
 	sprintf(buf, "Player joined team %d", player->team);
 	send_msg_broadcast(ipc, buf, strlen(buf));
@@ -86,10 +101,20 @@ int		join_game(struct ipc *ipc)
 
 int		exit_game(struct ipc *ipc)
 {
+	struct game		*game;
+	pid_t pid;
+
+	game = ipc->game;
+	pid = getpid();
 	sem_lock(ipc->sem_id[PLAYERS]);
 	if (ipc->game->nb_players)
 		ipc->game->nb_players--;
 	int nb_players = ipc->game->nb_players;
+	size_t i = 0;
+	while (i < MAX_PLAYERS && game->players[i].pid != pid)
+		i++;
+	if (i != MAX_PLAYERS)
+		game->players[i].pid = -1;
 	sem_unlock(ipc->sem_id[PLAYERS]);
 	sem_lock(ipc->sem_id[MAP]);
 	ipc->game->map[ipc->player.pos_y][ipc->player.pos_x] = ' ';

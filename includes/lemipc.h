@@ -21,6 +21,7 @@
 
 struct			player
 {
+	pid_t		pid;
 	int			team;
 	int			pos_x;
 	int			pos_y;
@@ -50,8 +51,8 @@ struct			ipc
 struct			game
 {
 	int					nb_players;
-	pid_t				players[MAX_PLAYERS];
-	struct player		player_turn;
+	struct player		players[MAX_PLAYERS];
+	struct player		*player_turn;
 	uint8_t				map[HEIGHT][WIDTH];
 };
 

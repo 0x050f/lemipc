@@ -44,9 +44,9 @@ void		send_msg_broadcast(struct ipc *ipc, char *msg, size_t size)
 	sem_lock(ipc->sem_id[PLAYERS]);
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
 	{
-		if (ipc->game->players[i] != -1)
+		if (ipc->game->players[i].pid != -1)
 		{
-			mbuf.mtype = ipc->game->players[i];
+			mbuf.mtype = ipc->game->players[i].pid;
 			msgsnd(ipc->mq_id, &mbuf, size, IPC_NOWAIT);
 		}
 	}
