@@ -2,27 +2,32 @@
 
 bool		is_circle(struct ipc *ipc)
 {
+	struct player	*player;
+	struct game		*game;
 	int				team_nb[10];
 
+	game = ipc->game;
+	player = &ipc->player;
 	memset(team_nb, 0, sizeof(team_nb));
 	sem_lock(ipc->sem_id[MAP]);
 	for (int y = -1; y <= 1; y++)
 	{
 		for (int x = -1; x <= 1; x++)
 		{
-			if (ipc->player.pos_x + x >= 0 && ipc->player.pos_x + x < WIDTH &&
-				ipc->player.pos_y + y >= 0 && ipc->player.pos_y + y < HEIGHT &&
-				ipc->game->map[ipc->player.pos_y + y][ipc->player.pos_x + x] != ' ')
+			if (player->pos_x + x >= 0 && player->pos_x + x < WIDTH &&
+				player->pos_y + y >= 0 && player->pos_y + y < HEIGHT &&
+				game->map[player->pos_y + y][player->pos_x + x] != ' ')
 			{
-				team_nb[ipc->game->map[ipc->player.pos_y + y][ipc->player.pos_x + x] - '0']++;
+				int nb = game->map[player->pos_y + y][player->pos_x + x] - '0';
+				team_nb[nb]++;
 			}
 		}
 	}
 	for (size_t i = 0; i < 10; i++)
 	{
-		if (i != (size_t)ipc->player.team && team_nb[i] > 1)
+		if (i != (size_t)player->team && team_nb[i] > 1)
 		{
-			ipc->game->map[ipc->player.pos_y][ipc->player.pos_x] = ' ';
+			game->map[player->pos_y][player->pos_x] = ' ';
 			sem_unlock(ipc->sem_id[MAP]);
 			return (true);
 		}
@@ -132,7 +137,7 @@ int		play_game(struct ipc *ipc)
 			recv_msg(ipc);
 			show_game(ipc);
 			if (is_circle(ipc))
-				return(exit_game(ipc));
+				return(EXIT_SUCCESS);
 		}
 	}
 	sem_unlock(ipc->sem_id[PLAYERS]);
@@ -215,9 +220,9 @@ int		exit_game(struct ipc *ipc)
 	sem_tryunlock(ipc->sem_id[PLAYERS]);
 	sem_tryunlock(ipc->sem_id[PLAY]);
 	sem_lock(ipc->sem_id[PLAYERS]);
-	if (ipc->game->nb_players)
-		ipc->game->nb_players--;
-	int nb_players = ipc->game->nb_players;
+	if (game->nb_players)
+		game->nb_players--;
+	int nb_players = game->nb_players;
 	size_t i = 0;
 	while (i < MAX_PLAYERS && game->players[i].pid != pid)
 		i++;
@@ -236,6 +241,7 @@ int		exit_game(struct ipc *ipc)
 		semctl(ipc->sem_id[PLAYERS], IPC_RMID, 0);
 		semctl(ipc->sem_id[PLAY], IPC_RMID, 0);
 		shmctl(ipc->shm_id, IPC_RMID, 0);
+		free(ipc->chatbox);
 		return (EXIT_SUCCESS);
 	}
 	sem_unlock(ipc->sem_id[MAP]);
