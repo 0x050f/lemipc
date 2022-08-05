@@ -6,7 +6,9 @@ DIR_SRCS	=	./srcs/
 DIR_OBJS	=	./compiled_srcs/
 
 SRCS		=	lemipc.c \
+				screen.c \
 				game.c \
+				msg.c \
 				utils.c
 
 INCLUDES	=	lemipc.h
@@ -25,7 +27,7 @@ endif
 all:		$(NAME)
 
 $(NAME):	$(OBJS) $(addprefix $(DIR_HEADERS), $(INCLUDES))
-			$(CC) $(CC_FLAGS) -I $(DIR_HEADERS) $(OBJS) -o $(NAME) -lrt -pthread
+			$(CC) $(CC_FLAGS) -I $(DIR_HEADERS) $(OBJS) -o $(NAME)
 
 $(OBJS):	| $(DIR_OBJS)
 

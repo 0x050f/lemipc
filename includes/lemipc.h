@@ -2,70 +2,95 @@
 # define LEMIPC_H
 
 # include <errno.h>
-# include <fcntl.h>
-# include <mqueue.h>
-# include <semaphore.h>
 # include <signal.h>
 # include <stdbool.h>
-# include <stdlib.h>
 # include <stdint.h>
 # include <stdio.h>
-# include <string.h>
+# include <stdlib.h>
 # include <sys/ipc.h>
-# include <sys/mman.h>
 # include <sys/msg.h>
+# include <sys/sem.h>
+# include <sys/shm.h>
 # include <sys/stat.h>
-# include <sys/types.h>
+# include <string.h>
 # include <time.h>
 # include <unistd.h>
 
-# define PRG_NAME "lemipc"
 
-struct			msgbuf
-{
-	long		mtype;
-	char		*mtext;
-};
+# define PRG_NAME	"lemipc"
 
-typedef struct	s_lemipc
+struct			player
 {
-	int			team_number;
-	int			shm_fd;
-	int			mq_fd;
-	void		*addr;
-	size_t		size;
+	pid_t		pid;
+	int			team;
 	int			pos_x;
 	int			pos_y;
-	uint8_t		*chatbox;
-}				t_lemipc;
+};
 
-# define HEIGHT	10
-# define WIDTH	35
+# define CHAT_HEIGHT	10
+# define CHAT_WIDTH		50
 
-# define CHAT_HEIGHT 10
+# define PLAYERS		0
+# define MAP			1
+# define PLAY			2
 
-# define END	0xdead
+# define UP				0
+# define DOWN			1
+# define LEFT			2
+# define RIGHT			3
 
-# define MAX_PLAYERS 20
-
-typedef struct	s_game
+struct			ipc
 {
-	sem_t		sem_game;
-	int			nb_players;
-	pid_t		players[MAX_PLAYERS];
-	int			pos_x_turn;
-	int			pos_y_turn;
-	uint8_t		map[HEIGHT][WIDTH];
-}				t_game;
+	int				shm_id;
+	int				sem_id[3];
+	int				mq_id;
+	struct game		*game;
+	struct player	player;
+	uint8_t			*chatbox;
+};
 
-extern t_lemipc	g_lemipc;
+# define HEIGHT			4
+# define WIDTH			10
+
+# define MAX_PLAYERS	HEIGHT * WIDTH
+
+struct			game
+{
+	int					nb_players;
+	struct player		players[MAX_PLAYERS];
+	uint8_t				map[HEIGHT][WIDTH];
+};
+
+/* screen.c */
+void	show_map(struct game *game, struct player *player);
+void	show_chatbox(uint8_t *chatbox);
+void	append_msg_chatbox(uint8_t *chatbox, char *msg, size_t size);
+void	show_game(struct ipc *ipc);
 
 /* game.c */
-int			create_game(int fd);
-int			join_game(int shm_fd, int mq_fd, size_t size, int team_number);
-int			exit_game(t_game *game, size_t size);
+int		create_game(struct ipc *ipc);
+int		setup_chatbox(struct ipc *ipc);
+int		join_game(struct ipc *ipc);
+int		exit_game(struct ipc *ipc);
+
+struct msgbuf
+{
+	long		mtype;
+	char		mtext[256];
+};
+
+/* msg.c */
+
+void	recv_msg(struct ipc *ipc, char buff[256]);
+int		check_recv_msg(struct ipc *ipc);
+void	send_msg_self(struct ipc *ipc, char *msg);
+void	send_msg_team(struct ipc *ipc, char *msg);
+void	send_msg_broadcast(struct ipc *ipc, char *msg);
 
 /* utils.c */
-size_t		align_up(size_t size, size_t align);
+int		sem_lock(int sem_id);
+int		sem_trylock(int sem_id);
+int		sem_tryunlock(int sem_id);
+int		sem_unlock(int sem_id);
 
 #endif

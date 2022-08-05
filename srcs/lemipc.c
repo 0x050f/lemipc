@@ -1,103 +1,100 @@
 #include "lemipc.h"
 
-t_lemipc	g_lemipc;
-
-/* TODO:
-void		msg_rcv(sigval_t sv)
-{
-	struct mq_attr attr;
-	ssize_t nr;
-	int mq_fd = *((mqd_t *) sv.sival_ptr);
-
-	if (mq_getattr(mq_fd, &attr) == -1)
-		dprintf(STDERR_FILENO, "%s: mq_getattr(): %s\n", PRG_NAME, strerror(errno));
-	char buf[attr.mq_msgsize];
-	nr = mq_receive(mq_fd, buf, attr.mq_msgsize, NULL);
-	if (nr == -1)
-		dprintf(STDERR_FILENO, "%s: mq_received(): %s\n", PRG_NAME, strerror(errno));
-	printf("Read %zd bytes from MQ: %.*s\n", nr, nr, buf);
-}
-*/
+struct ipc	g_ipc;
 
 void		signal_handler(int signum)
 {
 	(void)signum;
-	int end = EXIT_SUCCESS;
-	if (g_lemipc.addr)
-		end = exit_game(g_lemipc.addr, g_lemipc.size);
-	if (g_lemipc.shm_fd >= 0)
-		close(g_lemipc.shm_fd);
-	if (g_lemipc.mq_fd >= 0)
-		mq_close(g_lemipc.mq_fd);
-	if (end == END)
-	{
-		mq_unlink("/"PRG_NAME);
-		shm_unlink(PRG_NAME);
-	}
+	if (g_ipc.game)
+		exit_game(&g_ipc);
 	printf("\b\bLeaving the game...\n");
 	exit(EXIT_SUCCESS);
 }
-int			lemipc(int team_number)
+
+int			create_ipc(struct ipc *ipc, key_t keys[3])
 {
-	int		ret;
-	struct	stat sb;
+	ipc->shm_id = shmget(keys[0], sizeof(struct game), IPC_CREAT | SHM_R | SHM_W);
+	if (ipc->shm_id < 0)
+	{
+		dprintf(STDERR_FILENO, "%s: shmget(): %s\n", PRG_NAME, strerror(errno));
+		return (EXIT_FAILURE);
+	}
+	ipc->sem_id[MAP] = semget(keys[0], 1, IPC_CREAT | SHM_R | SHM_W);
+	if (ipc->sem_id[MAP] < 0)
+	{
+		dprintf(STDERR_FILENO, "%s: semget(): %s\n", PRG_NAME, strerror(errno));
+		shmctl(ipc->shm_id, IPC_RMID, 0);
+		return (EXIT_FAILURE);
+	}
+	ipc->sem_id[PLAYERS] = semget(keys[1], 1, IPC_CREAT | SHM_R | SHM_W);
+	if (ipc->sem_id[PLAYERS] < 0)
+	{
+		dprintf(STDERR_FILENO, "%s: semget(): %s\n", PRG_NAME, strerror(errno));
+		semctl(ipc->sem_id[MAP], IPC_RMID, 0);
+		shmctl(ipc->shm_id, IPC_RMID, 0);
+		return (EXIT_FAILURE);
+	}
+	ipc->sem_id[PLAY] = semget(keys[2], 1, IPC_CREAT | SHM_R | SHM_W);
+	if (ipc->sem_id[PLAYERS] < 0)
+	{
+		dprintf(STDERR_FILENO, "%s: semget(): %s\n", PRG_NAME, strerror(errno));
+		semctl(ipc->sem_id[MAP], IPC_RMID, 0);
+		semctl(ipc->sem_id[PLAYERS], IPC_RMID, 0);
+		shmctl(ipc->shm_id, IPC_RMID, 0);
+		return (EXIT_FAILURE);
+	}
+	ipc->mq_id = msgget(keys[0], IPC_CREAT | SHM_R | SHM_W);
+	if (ipc->mq_id < 0)
+	{
+		dprintf(STDERR_FILENO, "%s: msgget(): %s\n", PRG_NAME, strerror(errno));
+		semctl(ipc->sem_id[MAP], IPC_RMID, 0);
+		semctl(ipc->sem_id[PLAYERS], IPC_RMID, 0);
+		semctl(ipc->sem_id[PLAY], IPC_RMID, 0);
+		shmctl(ipc->shm_id, IPC_RMID, 0);
+		return (EXIT_FAILURE);
+	}
+	return (EXIT_SUCCESS);
+}
+
+int			lemipc(struct ipc *ipc)
+{
+	key_t			keys[3];
 
 	if (signal(SIGINT, signal_handler) == SIG_ERR)
 	{
 		dprintf(STDERR_FILENO, "%s: signal(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
 	}
-	if ((g_lemipc.shm_fd = shm_open(PRG_NAME, O_CREAT | O_RDWR, 0644)) < 0)
+	for (size_t i = 0; i < 3; i++)
 	{
-		dprintf(STDERR_FILENO, "%s: shm_open(): %s\n", PRG_NAME, strerror(errno));
-		return (EXIT_FAILURE);
+		if ((keys[i] = ftok("/tmp", i + 42)) < 0)
+		{
+			dprintf(STDERR_FILENO, "%s: ftok(): %s\n", PRG_NAME, strerror(errno));
+			return (EXIT_FAILURE);
+		}
 	}
-	char mq_name[256];
-	sprintf(mq_name, "/%s%d", PRG_NAME, getpid());
-	if ((g_lemipc.mq_fd = mq_open(mq_name, O_CREAT | O_RDWR, 0644, NULL)) < 0)
+	if ((ipc->sem_id[MAP] = semget(keys[0], 0, 0)) < 0)
 	{
-		dprintf(STDERR_FILENO, "%s: mq_open(): %s\n", PRG_NAME, strerror(errno));
-		close(g_lemipc.shm_fd);
-		return (EXIT_FAILURE);
-	}
-	/* TODO:
-	struct sigevent sev;
-
-	sev.sigev_notify = SIGEV_THREAD;
-	sev.sigev_notify_function = msg_rcv;
-	sev.sigev_notify_attributes = NULL;
-	sev.sigev_value.sival_ptr = &g_lemipc.mq_fd;
-	if (mq_notify(g_lemipc.mq_fd, &sev) == -1)
-	{
-		dprintf(STDERR_FILENO, "%s: mq_notify(): %s\n", PRG_NAME, strerror(errno));
-		close(g_lemipc.shm_fd);
-		mq_close(g_lemipc.mq_fd);
-		return (EXIT_FAILURE);
-	}
-	*/
-	if (fstat(g_lemipc.shm_fd, &sb) < 0)
-	{
-		dprintf(STDERR_FILENO, "%s: fstat(): %s\n", PRG_NAME, strerror(errno));
-		ret = EXIT_FAILURE;
-		goto end;
-	}
-	if (!sb.st_size)
-	{
-		if ((ret = create_game(g_lemipc.shm_fd)) == EXIT_FAILURE)
-			goto end;
-		ret = join_game(g_lemipc.shm_fd, g_lemipc.mq_fd, ret, team_number);
+		if (create_ipc(ipc, keys) == EXIT_FAILURE)
+			return (EXIT_FAILURE);
+		create_game(ipc);
+		sem_unlock(ipc->sem_id[MAP]);
+		sem_unlock(ipc->sem_id[PLAYERS]);
+		sem_unlock(ipc->sem_id[PLAY]);
 	}
 	else
-		ret = join_game(g_lemipc.shm_fd, g_lemipc.mq_fd, sb.st_size, team_number);
-end:
-	mq_close(g_lemipc.mq_fd);
-	close(g_lemipc.shm_fd);
-	if (ret == END)
 	{
-		shm_unlink(PRG_NAME);
-		ret = EXIT_SUCCESS;
+		ipc->shm_id = shmget(keys[0], 0, 0);
+		ipc->mq_id = msgget(keys[0], 0);
+		ipc->game = shmat(ipc->shm_id, NULL, 0);
+		ipc->sem_id[PLAYERS] = semget(keys[1], 0, 0);
+		ipc->sem_id[PLAY] = semget(keys[2], 0, 0);
 	}
-	return (ret);
+	if (setup_chatbox(ipc) == EXIT_FAILURE)
+		return (EXIT_FAILURE);
+	join_game(ipc);
+	exit_game(ipc);
+	return (EXIT_SUCCESS);
 }
 
 bool		check_args(int argc, char *argv[])
@@ -120,11 +117,13 @@ int			main(int argc, char *argv[])
 {
 	if (!check_args(argc, argv))
 		return (EXIT_FAILURE);
-	int team_number = atoi(argv[1]);
-	g_lemipc.shm_fd = -1;
-	g_lemipc.mq_fd = -1;
-	g_lemipc.size = 0;
-	g_lemipc.addr = NULL;
-	g_lemipc.chatbox = NULL;
-	return (lemipc(team_number));
+	g_ipc.player.team = atoi(argv[1]);
+	g_ipc.player.pos_x = 0;
+	g_ipc.player.pos_y = 0;
+	g_ipc.shm_id = -1;
+	g_ipc.sem_id[MAP] = -1;
+	g_ipc.sem_id[PLAYERS] = -1;
+	g_ipc.game = NULL;
+	g_ipc.chatbox = NULL;
+	return (lemipc(&g_ipc));
 }
