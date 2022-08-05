@@ -66,10 +66,10 @@ void		send_msg_team(struct ipc *ipc, char *msg)
 	sem_lock(ipc->sem_id[PLAYERS]);
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
 	{
-		if (ipc->game->players[i].pid != -1 && ipc->game->players[i].team == ipc->player.team)
+		if (ipc->game->players[i].pid != -1)
 		{
 			mbuf.mtype = ipc->game->players[i].pid;
-			msgsnd(ipc->mq_id, &mbuf, size + 3, IPC_NOWAIT);
+			msgsnd(ipc->mq_id, &mbuf, size + 3, 0);
 		}
 	}
 	sem_unlock(ipc->sem_id[PLAYERS]);
@@ -94,7 +94,7 @@ void		send_msg_broadcast(struct ipc *ipc, char *msg)
 		if (ipc->game->players[i].pid != -1)
 		{
 			mbuf.mtype = ipc->game->players[i].pid;
-			msgsnd(ipc->mq_id, &mbuf, size, IPC_NOWAIT);
+			msgsnd(ipc->mq_id, &mbuf, size, 0);
 		}
 	}
 	sem_unlock(ipc->sem_id[PLAYERS]);

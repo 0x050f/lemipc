@@ -160,6 +160,7 @@ void			get_closest_target(struct ipc *ipc, int *x, int *y)
 
 int		play_game(struct ipc *ipc)
 {
+	int nb_players;
 	int x;
 	int y;
 	char buf[256];
@@ -169,14 +170,26 @@ int		play_game(struct ipc *ipc)
 		recv_msg(ipc, NULL); // wake up when recv msg
 		show_game(ipc);
 	}
-	while (count_nb_teams(ipc) > 1)
+	while ((nb_players = count_nb_teams(ipc)) > 1)
 	{
 		if (sem_trylock(ipc->sem_id[PLAY]) == EXIT_SUCCESS)
 		{
 			get_closest_target(ipc, &x, &y);
 			sprintf(buf, "attack x: %d - y: %d", x, y);
-			/* TODO: get target */
-			move(ipc);
+			send_msg_team(ipc, buf);
+			for (size_t i = 0; i < (size_t)nb_players; i++)
+			{
+				recv_msg(ipc, buf);
+				/* TODO: get all targets */
+				if (strlen(buf) > strlen("x: attack") &&
+				!strcmp(buf + 3, "attack") && buf[0] - '0' == ipc->player.team)
+				{
+					int osef;
+					sscanf(buf, "%d: attack x: %d - y: %d", &osef, &x, &y);
+				}
+				show_game(ipc);
+			}
+			move(ipc);//, x, y);
 			sprintf(buf, "Player from team %d moved (x: %d, y: %d)", ipc->player.team, ipc->player.pos_x, ipc->player.pos_y);
 			send_msg_broadcast(ipc, buf);
 			recv_msg(ipc, NULL);
@@ -188,6 +201,11 @@ int		play_game(struct ipc *ipc)
 			get_closest_target(ipc, &x, &y);
 			sprintf(buf, "attack x: %d - y: %d", x, y);
 			send_msg_team(ipc, buf);
+			for (size_t i = 0; i < (size_t)nb_players; i++)
+			{
+				recv_msg(ipc, NULL);
+				show_game(ipc);
+			}
 			recv_msg(ipc, NULL);
 			show_game(ipc);
 		}
