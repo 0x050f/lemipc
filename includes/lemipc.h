@@ -33,6 +33,11 @@ struct			player
 # define MAP			1
 # define PLAY			2
 
+# define UP				0
+# define DOWN			1
+# define LEFT			2
+# define RIGHT			3
+
 struct			ipc
 {
 	int				shm_id;
@@ -43,8 +48,8 @@ struct			ipc
 	uint8_t			*chatbox;
 };
 
-# define HEIGHT			10
-# define WIDTH			35
+# define HEIGHT			4
+# define WIDTH			20
 
 # define MAX_PLAYERS	20
 
@@ -52,7 +57,7 @@ struct			game
 {
 	int					nb_players;
 	struct player		players[MAX_PLAYERS];
-	struct player		*player_turn;
+	struct player		player_turn;
 	uint8_t				map[HEIGHT][WIDTH];
 };
 
@@ -76,12 +81,15 @@ struct msgbuf
 
 /* msg.c */
 void	recv_msg(struct ipc *ipc);
-void	send_msg_self(struct ipc *ipc, char *msg, size_t size);
-void	send_msg_broadcast(struct ipc *ipc, char *msg, size_t size);
+int		check_recv_msg(struct ipc *ipc);
+void	send_msg_self(struct ipc *ipc, char *msg);
+void	send_msg_team(struct ipc *ipc, char *msg);
+void	send_msg_broadcast(struct ipc *ipc, char *msg);
 
 /* utils.c */
 int		sem_lock(int sem_id);
 int		sem_trylock(int sem_id);
+int		sem_tryunlock(int sem_id);
 int		sem_unlock(int sem_id);
 
 #endif

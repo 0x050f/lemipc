@@ -1,11 +1,43 @@
 #include "lemipc.h"
 
+bool		is_circle(struct ipc *ipc)
+{
+	int				team_nb[10];
+
+	memset(team_nb, 0, sizeof(team_nb));
+	sem_lock(ipc->sem_id[MAP]);
+	for (int y = -1; y <= 1; y++)
+	{
+		for (int x = -1; x <= 1; x++)
+		{
+			if (ipc->player.pos_x + x >= 0 && ipc->player.pos_x + x < WIDTH &&
+				ipc->player.pos_y + y >= 0 && ipc->player.pos_y + y < HEIGHT &&
+				ipc->game->map[ipc->player.pos_y + y][ipc->player.pos_x + x] != ' ')
+			{
+				team_nb[ipc->game->map[ipc->player.pos_y + y][ipc->player.pos_x + x] - '0']++;
+			}
+		}
+	}
+	for (size_t i = 0; i < 10; i++)
+	{
+		if (i != (size_t)ipc->player.team && team_nb[i] > 1)
+		{
+			ipc->game->map[ipc->player.pos_y][ipc->player.pos_x] = ' ';
+			sem_unlock(ipc->sem_id[MAP]);
+			return (true);
+		}
+	}
+	sem_unlock(ipc->sem_id[MAP]);
+	return (false);
+}
+
 int		count_nb_teams(struct ipc *ipc)
 {
 	int				sum;
 	int				team_nb[10];
 	struct game		*game;
 
+	sem_lock(ipc->sem_id[PLAYERS]);
 	memset(team_nb, 0, sizeof(team_nb));
 	game = ipc->game;
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
@@ -13,33 +45,98 @@ int		count_nb_teams(struct ipc *ipc)
 		if (game->players[i].pid != -1)
 			team_nb[game->players[i].team]++;
 	}
+	sum = 0;
 	for (size_t i = 0; i < 10; i++)
 	{
 		if (team_nb[i])
 			sum++;
 	}
+	sem_unlock(ipc->sem_id[PLAYERS]);
 	return (sum);
+}
+
+void	move(struct ipc *ipc)
+{
+	int				move = -1;
+	struct game		*game;
+	struct player	*player;
+	int				new_pos_x;
+	int				new_pos_y;
+
+	game = ipc->game;
+	player = &ipc->player;
+	sem_lock(ipc->sem_id[MAP]);
+	/* Check if can play otherwise pass */
+	if ((player->pos_x + 1 < WIDTH && game->map[player->pos_y][player->pos_x + 1] == ' ') ||
+	(player->pos_y + 1 < HEIGHT && game->map[player->pos_y + 1][player->pos_x] == ' ') ||
+	(player->pos_x - 1 >= 0 && game->map[player->pos_y][player->pos_x - 1] == ' ') ||
+	(player->pos_y - 1 >= 0 && game->map[player->pos_y - 1][player->pos_x] == ' '))
+	{
+		new_pos_x = player->pos_x;
+		new_pos_y = player->pos_y;
+		while (move == -1)
+		{
+			move = rand() % 4;
+			if (move == UP && player->pos_y - 1 >= 0 && game->map[player->pos_y - 1][player->pos_x] == ' ')
+				new_pos_y = player->pos_y - 1;
+			else if (move == DOWN && player->pos_y + 1 < HEIGHT && game->map[player->pos_y + 1][player->pos_x] == ' ')
+				new_pos_y = player->pos_y + 1;
+			else if (move == LEFT && player->pos_x - 1 >= 0 && game->map[player->pos_y][player->pos_x - 1] == ' ')
+				new_pos_x = player->pos_x - 1;
+			else if (move == RIGHT && player->pos_x + 1 < WIDTH && game->map[player->pos_y][player->pos_x + 1] == ' ')
+				new_pos_x = player->pos_x + 1;
+			else
+				move = -1;
+		}
+		game->map[player->pos_y][player->pos_x] = ' ';
+		game->map[new_pos_y][new_pos_x] = player->team + '0';
+		player->pos_x = new_pos_x;
+		player->pos_y = new_pos_y;
+	}
+	sem_unlock(ipc->sem_id[MAP]);
 }
 
 int		play_game(struct ipc *ipc)
 {
-	int nb_teams;
-
-	sem_lock(ipc->sem_id[PLAYERS]);
-	do {
-		recv_msg(ipc);
+	while ((count_nb_teams(ipc)) < 2)
+	{
+		recv_msg(ipc); // wake up when recv msg
 		show_game(ipc);
-		sem_unlock(ipc->sem_id[PLAYERS]);
-		sleep(1);
-		sem_lock(ipc->sem_id[PLAYERS]);
 	}
-	while (ipc->game->nb_players < 4 || (nb_teams = count_nb_teams(ipc)) < 2);
+	while (count_nb_teams(ipc) > 1)
+	{
+		if (sem_trylock(ipc->sem_id[PLAY]) == EXIT_SUCCESS)
+		{
+			usleep(10000);
+			sem_lock(ipc->sem_id[MAP]);
+			memcpy(&ipc->game->player_turn, &ipc->player, sizeof(struct player));
+			sem_unlock(ipc->sem_id[MAP]);
+			send_msg_self(ipc, "SYSTEM: Your turn");
+			recv_msg(ipc);
+			show_game(ipc);
+			while (check_recv_msg(ipc) == EXIT_SUCCESS)
+				show_game(ipc);
+			move(ipc);
+			char buf[256];
+			sprintf(buf, "Player from team %d moved", ipc->player.team);
+			send_msg_broadcast(ipc, buf);
+			recv_msg(ipc);
+			show_game(ipc);
+			while (check_recv_msg(ipc) == EXIT_SUCCESS)
+				show_game(ipc);
+			sem_unlock(ipc->sem_id[PLAY]);
+		}
+		else
+		{
+			/* TODO: find target */
+			recv_msg(ipc);
+			show_game(ipc);
+			if (is_circle(ipc))
+				return(exit_game(ipc));
+		}
+	}
 	sem_unlock(ipc->sem_id[PLAYERS]);
-	sem_lock(ipc->sem_id[MAP]);
-	if (sem_trylock(ipc->sem_id[PLAY]) == EXIT_SUCCESS)
-		printf("LOCKED !!!!\n");
-	sem_unlock(ipc->sem_id[MAP]);
-	sleep(1);
+	printf("You win !\n");
 	return (EXIT_SUCCESS);
 }
 
@@ -63,7 +160,8 @@ int		create_game(struct ipc *ipc)
 	ipc->game->nb_players = 0;
 	memset(ipc->game->players, -1, sizeof(ipc->game->players));
 	memset(ipc->game->map, ' ', sizeof(ipc->game->map));
-	ipc->game->player_turn = NULL;
+	ipc->game->player_turn.pos_x = -1;
+	ipc->game->player_turn.pos_y = -1;
 	return (EXIT_SUCCESS);
 }
 
@@ -74,6 +172,7 @@ int		join_game(struct ipc *ipc)
 	struct player	*player;
 	time_t			t;
 
+	srand((unsigned) time(&t));
 	player = &ipc->player;
 	game = ipc->game;
 	player->pid = getpid();
@@ -91,7 +190,6 @@ int		join_game(struct ipc *ipc)
 	sem_unlock(ipc->sem_id[PLAYERS]);
 	sem_lock(ipc->sem_id[MAP]);
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
-	srand((unsigned) time(&t));
 	do {
 		player->pos_x = rand() % WIDTH;
 		player->pos_y = rand() % HEIGHT;
@@ -101,7 +199,7 @@ int		join_game(struct ipc *ipc)
 	memcpy(&game->players[i], player, sizeof(struct player));
 	sem_unlock(ipc->sem_id[MAP]);
 	sprintf(buf, "Player joined team %d", player->team);
-	send_msg_broadcast(ipc, buf, strlen(buf));
+	send_msg_broadcast(ipc, buf);
 	return (play_game(ipc));
 }
 
@@ -113,6 +211,9 @@ int		exit_game(struct ipc *ipc)
 
 	game = ipc->game;
 	pid = getpid();
+	sem_tryunlock(ipc->sem_id[MAP]);
+	sem_tryunlock(ipc->sem_id[PLAYERS]);
+	sem_tryunlock(ipc->sem_id[PLAY]);
 	sem_lock(ipc->sem_id[PLAYERS]);
 	if (ipc->game->nb_players)
 		ipc->game->nb_players--;
@@ -124,7 +225,7 @@ int		exit_game(struct ipc *ipc)
 		game->players[i].pid = -1;
 	sem_unlock(ipc->sem_id[PLAYERS]);
 	sprintf(buffer, "Player left team %d", ipc->player.team);
-	send_msg_broadcast(ipc, buffer, strlen(buffer));
+	send_msg_broadcast(ipc, buffer);
 	sem_lock(ipc->sem_id[MAP]);
 	ipc->game->map[ipc->player.pos_y][ipc->player.pos_x] = ' ';
 	if (!nb_players)

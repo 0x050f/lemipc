@@ -22,7 +22,7 @@ void		show_map(struct game *game, struct player *player)
 		{
 			if (x == (size_t)player->pos_x && y == (size_t)player->pos_y)
 				printf("\e[31m");
-			if (game->player_turn && x == (size_t)game->player_turn->pos_x && y == (size_t)game->player_turn->pos_y)
+			if (x == (size_t)game->player_turn.pos_x && y == (size_t)game->player_turn.pos_y)
 				printf("\e[5m");
 			printf("%c\e[0m│", game->map[y][x]);
 		}
