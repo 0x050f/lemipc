@@ -1,6 +1,6 @@
 #include "lemipc.h"
 
-void		recv_msg(struct ipc *ipc)
+void		recv_msg(struct ipc *ipc, char buff[256])
 {
 	pid_t			pid;
 	int				nr;
@@ -8,7 +8,11 @@ void		recv_msg(struct ipc *ipc)
 
 	pid = getpid();
 	if ((nr = msgrcv(ipc->mq_id, &msg, sizeof(msg.mtext), pid, MSG_NOERROR)) >= 0)
+	{
 		append_msg_chatbox(ipc->chatbox, msg.mtext, nr);
+		if (buff)
+			memcpy(buff, msg.mtext, nr);
+	}
 }
 
 int			check_recv_msg(struct ipc *ipc)

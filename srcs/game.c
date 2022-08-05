@@ -101,29 +101,94 @@ void	move(struct ipc *ipc)
 	sem_unlock(ipc->sem_id[MAP]);
 }
 
+bool		check_if_target(struct ipc *ipc, int x, int y)
+{
+	return (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT &&
+				ipc->game->map[y][x] != ' ' &&
+				ipc->game->map[y][x] != ipc->player.team + '0');
+}
+
+void			get_closest_target(struct ipc *ipc, int *x, int *y)
+{
+	int xs = ipc->player.pos_x;
+	int ys = ipc->player.pos_y;
+	int max_dist = (HEIGHT > WIDTH) ? HEIGHT : WIDTH;
+
+	sem_lock(ipc->sem_id[MAP]);
+	for (int d = 1; d < max_dist; d++)
+	{
+		for (int i = 0; i < d + 1; i++)
+		{
+			*x = xs - d + i;
+			*y = ys - i;
+			if (check_if_target(ipc, *x, *y))
+			{
+				sem_unlock(ipc->sem_id[MAP]);
+				return ;
+			}
+
+			*x = xs + d - i;
+			*y = ys + i;
+			if (check_if_target(ipc, *x, *y))
+			{
+				sem_unlock(ipc->sem_id[MAP]);
+				return ;
+			}
+		}
+
+		for (int i = 1; i < d; i++)
+		{
+			*x = xs - i;
+			*y = ys + d - i;
+			if (check_if_target(ipc, *x, *y))
+			{
+				sem_unlock(ipc->sem_id[MAP]);
+				return ;
+			}
+
+			*x = xs + i;
+			*y = ys - d + i;
+			if (check_if_target(ipc, *x, *y))
+			{
+				sem_unlock(ipc->sem_id[MAP]);
+				return ;
+			}
+		}
+	}
+	sem_unlock(ipc->sem_id[MAP]);
+}
+
 int		play_game(struct ipc *ipc)
 {
+	int x;
+	int y;
+	char buf[256];
+
 	while ((count_nb_teams(ipc)) < 2)
 	{
-		recv_msg(ipc); // wake up when recv msg
+		recv_msg(ipc, NULL); // wake up when recv msg
 		show_game(ipc);
 	}
 	while (count_nb_teams(ipc) > 1)
 	{
 		if (sem_trylock(ipc->sem_id[PLAY]) == EXIT_SUCCESS)
 		{
+			get_closest_target(ipc, &x, &y);
+			sprintf(buf, "attack x: %d - y: %d", x, y);
+			/* TODO: get target */
 			move(ipc);
-			char buf[256];
-			sprintf(buf, "Player from team %d moved", ipc->player.team);
+			sprintf(buf, "Player from team %d moved (x: %d, y: %d)", ipc->player.team, ipc->player.pos_x, ipc->player.pos_y);
 			send_msg_broadcast(ipc, buf);
-			recv_msg(ipc);
+			recv_msg(ipc, NULL);
 			show_game(ipc);
 			sem_unlock(ipc->sem_id[PLAY]);
 		}
 		else
 		{
-			/* TODO: find target */
-			recv_msg(ipc);
+			get_closest_target(ipc, &x, &y);
+			sprintf(buf, "attack x: %d - y: %d", x, y);
+			send_msg_team(ipc, buf);
+			recv_msg(ipc, NULL);
 			show_game(ipc);
 		}
 		if (is_circle(ipc))

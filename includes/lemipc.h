@@ -80,7 +80,8 @@ struct msgbuf
 };
 
 /* msg.c */
-void	recv_msg(struct ipc *ipc);
+
+void	recv_msg(struct ipc *ipc, char buff[256]);
 int		check_recv_msg(struct ipc *ipc);
 void	send_msg_self(struct ipc *ipc, char *msg);
 void	send_msg_team(struct ipc *ipc, char *msg);
