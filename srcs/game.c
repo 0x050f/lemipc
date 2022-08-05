@@ -112,23 +112,12 @@ int		play_game(struct ipc *ipc)
 	{
 		if (sem_trylock(ipc->sem_id[PLAY]) == EXIT_SUCCESS)
 		{
-			usleep(10000);
-			sem_lock(ipc->sem_id[MAP]);
-			memcpy(&ipc->game->player_turn, &ipc->player, sizeof(struct player));
-			sem_unlock(ipc->sem_id[MAP]);
-			send_msg_self(ipc, "SYSTEM: Your turn");
-			recv_msg(ipc);
-			show_game(ipc);
-			while (check_recv_msg(ipc) == EXIT_SUCCESS)
-				show_game(ipc);
 			move(ipc);
 			char buf[256];
 			sprintf(buf, "Player from team %d moved", ipc->player.team);
 			send_msg_broadcast(ipc, buf);
 			recv_msg(ipc);
 			show_game(ipc);
-			while (check_recv_msg(ipc) == EXIT_SUCCESS)
-				show_game(ipc);
 			sem_unlock(ipc->sem_id[PLAY]);
 		}
 		else
@@ -136,18 +125,24 @@ int		play_game(struct ipc *ipc)
 			/* TODO: find target */
 			recv_msg(ipc);
 			show_game(ipc);
-			if (is_circle(ipc))
-				return(EXIT_SUCCESS);
 		}
+		if (is_circle(ipc))
+		{
+			printf("You lose !\n");
+			return(EXIT_SUCCESS);
+		}
+		usleep(100000);
+		sem_lock(ipc->sem_id[PLAY]); /* lock to get random 'TURN' */
+		sem_unlock(ipc->sem_id[PLAY]);
 	}
-	sem_unlock(ipc->sem_id[PLAYERS]);
+	show_game(ipc);
 	printf("You win !\n");
 	return (EXIT_SUCCESS);
 }
 
 int		setup_chatbox(struct ipc *ipc)
 {
-	size_t chatbox_size = (CHAT_HEIGHT - 1) * ((WIDTH * 2) - 1) * sizeof(uint8_t);
+	size_t chatbox_size = (CHAT_HEIGHT - 1) * (CHAT_WIDTH - 1) * sizeof(uint8_t);
 	ipc->chatbox = malloc(chatbox_size);
 	if (!ipc->chatbox)
 	{
@@ -165,8 +160,6 @@ int		create_game(struct ipc *ipc)
 	ipc->game->nb_players = 0;
 	memset(ipc->game->players, -1, sizeof(ipc->game->players));
 	memset(ipc->game->map, ' ', sizeof(ipc->game->map));
-	ipc->game->player_turn.pos_x = -1;
-	ipc->game->player_turn.pos_y = -1;
 	return (EXIT_SUCCESS);
 }
 

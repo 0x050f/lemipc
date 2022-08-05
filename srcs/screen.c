@@ -22,8 +22,6 @@ void		show_map(struct game *game, struct player *player)
 		{
 			if (x == (size_t)player->pos_x && y == (size_t)player->pos_y)
 				printf("\e[31m");
-			if (x == (size_t)game->player_turn.pos_x && y == (size_t)game->player_turn.pos_y)
-				printf("\e[5m");
 			printf("%c\e[0m│", game->map[y][x]);
 		}
 		printf("\n");
@@ -62,22 +60,22 @@ void		show_chatbox(uint8_t *chatbox)
 {
 	for (size_t y = 0; y <= CHAT_HEIGHT; y++)
 	{
-		for (size_t x = 0; x <= WIDTH * 2; x++)
+		for (size_t x = 0; x <= CHAT_WIDTH; x++)
 		{
 			if (x == 0 && y == 0)
 				printf("┌");
-			else if (x == WIDTH * 2 && y == 0)
+			else if (x == CHAT_WIDTH && y == 0)
 				printf("┐");
 			else if (x == 0 && y == CHAT_HEIGHT)
 				printf("└");
-			else if (x == WIDTH * 2 && y == CHAT_HEIGHT)
+			else if (x == CHAT_WIDTH && y == CHAT_HEIGHT)
 				printf("┘");
-			else if (x == 0 || x == WIDTH * 2)
+			else if (x == 0 || x == CHAT_WIDTH)
 				printf("│");
 			else if (y == 0 || y == CHAT_HEIGHT)
 				printf("─");
 			else
-				printf("%c", chatbox[(x - 1) + (y - 1) * ((WIDTH * 2) - 1)]);
+				printf("%c", chatbox[(x - 1) + (y - 1) * (CHAT_WIDTH - 1)]);
 		}
 		printf("\n");
 	}
@@ -87,8 +85,8 @@ void		append_msg_chatbox(uint8_t *chatbox, char *msg, size_t size)
 {
 	static size_t		cursor = 0;
 
-	size_t cursor_max_size = (CHAT_HEIGHT - 1) * ((WIDTH * 2) - 1);
-	size_t size_to_add = ((WIDTH * 2) - 1) - (size % ((WIDTH * 2) - 1));
+	size_t cursor_max_size = (CHAT_HEIGHT - 1) * (CHAT_WIDTH - 1);
+	size_t size_to_add = (CHAT_WIDTH - 1) - (size % (CHAT_WIDTH - 1));
 	size_t total_size = size + size_to_add;
 
 	if (cursor + total_size > cursor_max_size)

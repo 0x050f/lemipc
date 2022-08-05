@@ -28,6 +28,7 @@ struct			player
 };
 
 # define CHAT_HEIGHT	10
+# define CHAT_WIDTH		50
 
 # define PLAYERS		0
 # define MAP			1
@@ -49,15 +50,14 @@ struct			ipc
 };
 
 # define HEIGHT			4
-# define WIDTH			12// 20
+# define WIDTH			10
 
-# define MAX_PLAYERS	20
+# define MAX_PLAYERS	HEIGHT * WIDTH
 
 struct			game
 {
 	int					nb_players;
 	struct player		players[MAX_PLAYERS];
-	struct player		player_turn;
 	uint8_t				map[HEIGHT][WIDTH];
 };
 
