@@ -81,6 +81,7 @@ void	send_msg_broadcast(struct ipc *ipc, char *msg, size_t size);
 
 /* utils.c */
 int		sem_lock(int sem_id);
+int		sem_trylock(int sem_id);
 int		sem_unlock(int sem_id);
 
 #endif

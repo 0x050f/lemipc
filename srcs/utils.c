@@ -14,6 +14,13 @@ int		sem_lock(int sem_id)
 	return(EXIT_SUCCESS);
 }
 
+int		sem_trylock(int sem_id)
+{
+	if (semctl(sem_id, 0, GETVAL, 0) != 0)
+		return (sem_lock(sem_id));
+	return (EXIT_FAILURE);
+}
+
 int		sem_unlock(int sem_id)
 {
 	struct sembuf sem_b;

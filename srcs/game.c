@@ -23,6 +23,8 @@ int		count_nb_teams(struct ipc *ipc)
 
 int		play_game(struct ipc *ipc)
 {
+	int nb_teams;
+
 	sem_lock(ipc->sem_id[PLAYERS]);
 	do {
 		recv_msg(ipc);
@@ -31,8 +33,12 @@ int		play_game(struct ipc *ipc)
 		sleep(1);
 		sem_lock(ipc->sem_id[PLAYERS]);
 	}
-	while (ipc->game->nb_players < 4 || count_nb_teams(ipc) < 2);
+	while (ipc->game->nb_players < 4 || (nb_teams = count_nb_teams(ipc)) < 2);
 	sem_unlock(ipc->sem_id[PLAYERS]);
+	sem_lock(ipc->sem_id[MAP]);
+	if (sem_trylock(ipc->sem_id[PLAY]) == EXIT_SUCCESS)
+		printf("LOCKED !!!!\n");
+	sem_unlock(ipc->sem_id[MAP]);
 	sleep(1);
 	return (EXIT_SUCCESS);
 }
@@ -101,6 +107,7 @@ int		join_game(struct ipc *ipc)
 
 int		exit_game(struct ipc *ipc)
 {
+	char			buffer[256];
 	struct game		*game;
 	pid_t pid;
 
@@ -116,6 +123,8 @@ int		exit_game(struct ipc *ipc)
 	if (i != MAX_PLAYERS)
 		game->players[i].pid = -1;
 	sem_unlock(ipc->sem_id[PLAYERS]);
+	sprintf(buffer, "Player left team %d", ipc->player.team);
+	send_msg_broadcast(ipc, buffer, strlen(buffer));
 	sem_lock(ipc->sem_id[MAP]);
 	ipc->game->map[ipc->player.pos_y][ipc->player.pos_x] = ' ';
 	if (!nb_players)
