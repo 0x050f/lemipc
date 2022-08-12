@@ -38,13 +38,11 @@ bool		is_circle(struct ipc *ipc)
 
 int		count_nb_teams(struct ipc *ipc)
 {
-//	printf("COUNT NB TEAMS\n");
 	int				sum;
 	int				team_nb[10];
 	struct game		*game;
 
 	sem_lock(ipc->sem_id[PLAYERS]);
-//	printf("<LOCK PLAYERS>\n");
 	memset(team_nb, 0, sizeof(team_nb));
 	game = ipc->game;
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
@@ -58,7 +56,6 @@ int		count_nb_teams(struct ipc *ipc)
 		if (team_nb[i])
 			sum++;
 	}
-//	printf("<UNLOCK PLAYERS>\n");
 	sem_unlock(ipc->sem_id[PLAYERS]);
 	return (sum);
 }
@@ -175,18 +172,16 @@ int		play_game(struct ipc *ipc)
 	}
 	while (nb_teams > 1)
 	{
-//		printf("TRYLOCK\n");
 		if (sem_trylock(ipc->sem_id[PLAY]) == EXIT_SUCCESS)
 		{
-//			printf("TURN\n");
 			sem_lock(ipc->sem_id[PLAYERS]);
 			int nb_players = ipc->game->nb_players;
 			sem_unlock(ipc->sem_id[PLAYERS]);
-//			printf("RECV TURN\n");
+			/* TODO: Get msg from team */
 			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
 				recv_msg(ipc, NULL);
-//			printf("RECV TURN END\n");
 			ipc->game->pid_turn = getpid();
+			/* TODO: strat */
 			move(ipc);//, x, y);
 			sprintf(buf, "Player from team %d moved (x: %d, y: %d)", ipc->player.team, ipc->player.pos_x, ipc->player.pos_y);
 			send_msg_broadcast(ipc, buf);
@@ -198,13 +193,11 @@ int		play_game(struct ipc *ipc)
 			get_closest_target(ipc, &x, &y);
 			sprintf(buf, "attack (x: %d, y: %d)", x, y);
 			send_msg_team(ipc, buf);
-//			printf("RECV ATTACK\n");
 			sem_lock(ipc->sem_id[PLAYERS]);
 			int nb_players = ipc->game->nb_players;
 			sem_unlock(ipc->sem_id[PLAYERS]);
 			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
 				recv_msg(ipc, NULL);
-//			printf("END_RECV ATTACK\n");
 		}
 		show_game(ipc);
 		if (is_circle(ipc))
@@ -248,6 +241,7 @@ int		join_game(struct ipc *ipc)
 	struct game		*game;
 	struct player	*player;
 	int				nb_players;
+	int				nb_teams;
 	time_t			t;
 
 	srand((unsigned) time(&t));
@@ -268,6 +262,7 @@ int		join_game(struct ipc *ipc)
 	game->nb_players++;
 	nb_players = game->nb_players;
 	sem_unlock(ipc->sem_id[PLAYERS]);
+	nb_teams = count_nb_teams(ipc);
 	sem_lock(ipc->sem_id[MAP]);
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
 	do {
@@ -278,7 +273,7 @@ int		join_game(struct ipc *ipc)
 	game->map[player->pos_y][player->pos_x] = player->team + '0';
 	memcpy(&game->players[i], player, sizeof(struct player));
 	sem_unlock(ipc->sem_id[MAP]);
-	if (nb_players > 2)
+	if (nb_teams > 2)
 	{
 		for (size_t i = 0; i < (size_t)nb_players - 1; i++)
 			recv_msg(ipc, NULL);
@@ -310,7 +305,7 @@ int		exit_game(struct ipc *ipc)
 	ipc->game->map[ipc->player.pos_y][ipc->player.pos_x] = ' ';
 	sem_unlock(ipc->sem_id[MAP]);
 	sem_unlock(ipc->sem_id[PLAYERS]);
-	if (!nb_players)
+	if (!nb_players) // DELETE IPCS
 	{
 		shmdt(ipc->game);
 		msgctl(ipc->mq_id, IPC_RMID, 0);

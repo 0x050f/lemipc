@@ -48,15 +48,12 @@ void		send_msg_self(struct ipc *ipc, char *msg)
 
 void		send_msg_team(struct ipc *ipc, char *msg)
 {
+	char			msg_team[260];
 	int				total;
 	pid_t			pid;
-	char			*msg_team;
 
 	total = 0;
 	pid = getpid();
-	msg_team = malloc(3 + strlen(msg));
-	if (!(msg_team)) // TODO: error malloc
-		return ;
 	sprintf(msg_team, "%d: %s", ipc->player.team, msg);
 	sem_lock(ipc->sem_id[PLAYERS]);
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
@@ -70,7 +67,6 @@ void		send_msg_team(struct ipc *ipc, char *msg)
 			send_msg_self(ipc, msg_team);
 	}
 	sem_unlock(ipc->sem_id[PLAYERS]);
-	free(msg_team);
 	while (total--)
 		recv_msg(ipc, NULL);
 }
