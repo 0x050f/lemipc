@@ -180,6 +180,12 @@ int		play_game(struct ipc *ipc)
 //		printf("TRYLOCK\n");
 		if (sem_trylock(ipc->sem_id[PLAY]) == EXIT_SUCCESS)
 		{
+			send_msg_broadcast(ipc, "My turn !");
+			sem_lock(ipc->sem_id[PLAYERS]);
+			int nb_players = ipc->game->nb_players;
+			sem_unlock(ipc->sem_id[PLAYERS]);
+			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
+				recv_msg(ipc, NULL);
 //			printf("TURN\n");
 			ipc->game->pid_turn = getpid();
 			move(ipc);//, x, y);
@@ -189,8 +195,13 @@ int		play_game(struct ipc *ipc)
 		}
 		else
 		{
+			send_msg_team(ipc, "A strategy.");
 //			printf("RECV\n");
-			recv_msg(ipc, NULL);
+			sem_lock(ipc->sem_id[PLAYERS]);
+			int nb_players = ipc->game->nb_players;
+			sem_unlock(ipc->sem_id[PLAYERS]);
+			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
+				recv_msg(ipc, NULL);
 //			printf("END_RECV\n");
 		}
 		show_game(ipc);
