@@ -38,13 +38,13 @@ bool		is_circle(struct ipc *ipc)
 
 int		count_nb_teams(struct ipc *ipc)
 {
-	printf("COUNT NB TEAMS\n");
+//	printf("COUNT NB TEAMS\n");
 	int				sum;
 	int				team_nb[10];
 	struct game		*game;
 
 	sem_lock(ipc->sem_id[PLAYERS]);
-	printf("<LOCK PLAYERS>\n");
+//	printf("<LOCK PLAYERS>\n");
 	memset(team_nb, 0, sizeof(team_nb));
 	game = ipc->game;
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
@@ -58,7 +58,7 @@ int		count_nb_teams(struct ipc *ipc)
 		if (team_nb[i])
 			sum++;
 	}
-	printf("<UNLOCK PLAYERS>\n");
+//	printf("<UNLOCK PLAYERS>\n");
 	sem_unlock(ipc->sem_id[PLAYERS]);
 	return (sum);
 }
@@ -168,7 +168,7 @@ int		play_game(struct ipc *ipc)
 //	int y;
 	char buf[256];
 
-	//show_game(ipc);
+	show_game(ipc);
 	nb_teams = count_nb_teams(ipc);
 	while (nb_teams < 2)
 	{
@@ -177,10 +177,10 @@ int		play_game(struct ipc *ipc)
 	}
 	while (nb_teams > 1)
 	{
-		printf("TRYLOCK\n");
+//		printf("TRYLOCK\n");
 		if (sem_trylock(ipc->sem_id[PLAY]) == EXIT_SUCCESS)
 		{
-			printf("TURN\n");
+//			printf("TURN\n");
 			ipc->game->pid_turn = getpid();
 			move(ipc);//, x, y);
 			sprintf(buf, "Player from team %d moved (x: %d, y: %d)", ipc->player.team, ipc->player.pos_x, ipc->player.pos_y);
@@ -189,22 +189,20 @@ int		play_game(struct ipc *ipc)
 		}
 		else
 		{
-			printf("RECV\n");
+//			printf("RECV\n");
 			recv_msg(ipc, NULL);
-			printf("END_RECV\n");
+//			printf("END_RECV\n");
 		}
-//		show_game(ipc);
+		show_game(ipc);
 		if (is_circle(ipc))
 		{
 			printf("You lose !\n");
 			return(EXIT_SUCCESS);
 		}
-		printf("END_LOOP\n");
+		usleep(100000);
 		nb_teams = count_nb_teams(ipc);
 	}
-//	show_game(ipc);
-//	if (ipc->game->nb_players != 1)
-//		send_msg_team(ipc, "We win !\n");
+	printf("You win!\n");
 	return (EXIT_SUCCESS);
 }
 
@@ -243,6 +241,7 @@ int		join_game(struct ipc *ipc)
 	game = ipc->game;
 	player->pid = getpid();
 	sem_lock(ipc->sem_id[PLAYERS]);
+	sem_lock(ipc->sem_id[PLAY]);
 	size_t i = 0;
 	while (i < MAX_PLAYERS && game->players[i].pid != -1)
 		i++;
@@ -266,6 +265,7 @@ int		join_game(struct ipc *ipc)
 	sem_unlock(ipc->sem_id[MAP]);
 	sprintf(buf, "Player joined team %d", player->team);
 	send_msg_broadcast(ipc, buf);
+	sem_unlock(ipc->sem_id[PLAY]);
 	return (play_game(ipc));
 }
 
@@ -280,6 +280,7 @@ int		exit_game(struct ipc *ipc)
 	sem_tryunlock(ipc->sem_id[MAP]);
 	sem_tryunlock(ipc->sem_id[PLAYERS]);
 	sem_tryunlock(ipc->sem_id[PLAY]);
+	sem_lock(ipc->sem_id[PLAY]);
 	sprintf(buffer, "Player left team %d", ipc->player.team);
 	send_msg_broadcast(ipc, buffer);
 	sem_lock(ipc->sem_id[PLAYERS]);
@@ -306,6 +307,7 @@ int		exit_game(struct ipc *ipc)
 		return (EXIT_SUCCESS);
 	}
 	sem_unlock(ipc->sem_id[MAP]);
+	sem_unlock(ipc->sem_id[PLAY]);
 	shmdt(ipc->game);
 	free(ipc->chatbox);
 	return (EXIT_SUCCESS);
