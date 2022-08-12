@@ -164,8 +164,6 @@ void			get_closest_target(struct ipc *ipc, int *x, int *y)
 int		play_game(struct ipc *ipc)
 {
 	int nb_teams;
-//	int x;
-//	int y;
 	char buf[256];
 
 	show_game(ipc);
@@ -180,13 +178,14 @@ int		play_game(struct ipc *ipc)
 //		printf("TRYLOCK\n");
 		if (sem_trylock(ipc->sem_id[PLAY]) == EXIT_SUCCESS)
 		{
-			send_msg_broadcast(ipc, "My turn !");
+//			printf("TURN\n");
 			sem_lock(ipc->sem_id[PLAYERS]);
 			int nb_players = ipc->game->nb_players;
 			sem_unlock(ipc->sem_id[PLAYERS]);
+//			printf("RECV TURN\n");
 			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
 				recv_msg(ipc, NULL);
-//			printf("TURN\n");
+//			printf("RECV TURN END\n");
 			ipc->game->pid_turn = getpid();
 			move(ipc);//, x, y);
 			sprintf(buf, "Player from team %d moved (x: %d, y: %d)", ipc->player.team, ipc->player.pos_x, ipc->player.pos_y);
@@ -195,14 +194,17 @@ int		play_game(struct ipc *ipc)
 		}
 		else
 		{
-			send_msg_team(ipc, "A strategy.");
-//			printf("RECV\n");
+			int x, y;
+			get_closest_target(ipc, &x, &y);
+			sprintf(buf, "attack (x: %d, y: %d)", x, y);
+			send_msg_team(ipc, buf);
+//			printf("RECV ATTACK\n");
 			sem_lock(ipc->sem_id[PLAYERS]);
 			int nb_players = ipc->game->nb_players;
 			sem_unlock(ipc->sem_id[PLAYERS]);
 			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
 				recv_msg(ipc, NULL);
-//			printf("END_RECV\n");
+//			printf("END_RECV ATTACK\n");
 		}
 		show_game(ipc);
 		if (is_circle(ipc))
@@ -245,6 +247,7 @@ int		join_game(struct ipc *ipc)
 	char			buf[256];
 	struct game		*game;
 	struct player	*player;
+	int				nb_players;
 	time_t			t;
 
 	srand((unsigned) time(&t));
@@ -263,6 +266,7 @@ int		join_game(struct ipc *ipc)
 		return (EXIT_FAILURE);
 	}
 	game->nb_players++;
+	nb_players = game->nb_players;
 	sem_unlock(ipc->sem_id[PLAYERS]);
 	sem_lock(ipc->sem_id[MAP]);
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
@@ -274,6 +278,11 @@ int		join_game(struct ipc *ipc)
 	game->map[player->pos_y][player->pos_x] = player->team + '0';
 	memcpy(&game->players[i], player, sizeof(struct player));
 	sem_unlock(ipc->sem_id[MAP]);
+	if (nb_players > 2)
+	{
+		for (size_t i = 0; i < (size_t)nb_players - 1; i++)
+			recv_msg(ipc, NULL);
+	}
 	sprintf(buf, "Player joined team %d", player->team);
 	send_msg_broadcast(ipc, buf);
 	sem_unlock(ipc->sem_id[PLAY]);
@@ -282,30 +291,25 @@ int		join_game(struct ipc *ipc)
 
 int		exit_game(struct ipc *ipc)
 {
-	char			buffer[256];
 	struct game		*game;
-	pid_t pid;
+	int				nb_players;
+	pid_t			pid;
 
-	game = ipc->game;
 	pid = getpid();
-	sem_tryunlock(ipc->sem_id[MAP]);
-	sem_tryunlock(ipc->sem_id[PLAYERS]);
-	sem_tryunlock(ipc->sem_id[PLAY]);
-	sem_lock(ipc->sem_id[PLAY]);
-	sprintf(buffer, "Player left team %d", ipc->player.team);
-	send_msg_broadcast(ipc, buffer);
+	game = ipc->game;
 	sem_lock(ipc->sem_id[PLAYERS]);
+	sem_lock(ipc->sem_id[MAP]);
 	if (game->nb_players)
 		game->nb_players--;
-	int nb_players = game->nb_players;
+	nb_players = game->nb_players;
 	size_t i = 0;
 	while (i < MAX_PLAYERS && game->players[i].pid != pid)
 		i++;
 	if (i != MAX_PLAYERS)
 		game->players[i].pid = -1;
-	sem_unlock(ipc->sem_id[PLAYERS]);
-	sem_lock(ipc->sem_id[MAP]);
 	ipc->game->map[ipc->player.pos_y][ipc->player.pos_x] = ' ';
+	sem_unlock(ipc->sem_id[MAP]);
+	sem_unlock(ipc->sem_id[PLAYERS]);
 	if (!nb_players)
 	{
 		shmdt(ipc->game);
@@ -317,8 +321,6 @@ int		exit_game(struct ipc *ipc)
 		free(ipc->chatbox);
 		return (EXIT_SUCCESS);
 	}
-	sem_unlock(ipc->sem_id[MAP]);
-	sem_unlock(ipc->sem_id[PLAY]);
 	shmdt(ipc->game);
 	free(ipc->chatbox);
 	return (EXIT_SUCCESS);

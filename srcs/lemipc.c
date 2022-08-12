@@ -5,9 +5,26 @@ struct ipc	g_ipc;
 void		signal_handler(int signum)
 {
 	(void)signum;
+	struct player	*players;
+	pid_t			pid;
+
+	pid = getpid();
 	if (g_ipc.game)
+	{
+		sem_tryunlock(g_ipc.sem_id[MAP]);
+		sem_tryunlock(g_ipc.sem_id[PLAY]);
+		players = g_ipc.game->players;
+		sem_lock(g_ipc.sem_id[PLAYERS]);
+		for (size_t i = 0; i < MAX_PLAYERS; i++)
+		{
+			if (players[i].pid != -1 && players[i].pid != pid)
+				kill(players[i].pid, SIGINT);
+			players[i].pid = -1;
+		}
+		sem_unlock(g_ipc.sem_id[PLAYERS]);
+		printf("\b\bExit the game...\n");
 		exit_game(&g_ipc);
-	printf("\b\bLeaving the game...\n");
+	}
 	exit(EXIT_SUCCESS);
 }
 

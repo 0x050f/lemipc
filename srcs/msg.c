@@ -20,7 +20,7 @@ void		recv_msg(struct ipc *ipc, char buff[256])
 	else
 	{
 		dprintf(STDERR_FILENO, "%s: msgrcv(): %s\n", PRG_NAME, strerror(errno));
-		exit(EXIT_FAILURE); //TODO: remove
+		exit(EXIT_FAILURE); //TODO:
 	}
 }
 

@@ -84,7 +84,6 @@ struct ipc_msgbuf
 
 /* msg.c */
 void	recv_msg(struct ipc *ipc, char buff[256]);
-int		check_recv_msg(struct ipc *ipc);
 void	send_msg_pid(struct ipc *ipc, pid_t pid, char *msg);
 void	send_msg_self(struct ipc *ipc, char *msg);
 void	send_msg_team(struct ipc *ipc, char *msg);
@@ -93,6 +92,7 @@ void	send_msg_broadcast(struct ipc *ipc, char *msg);
 /* utils.c */
 int		sem_lock(int sem_id);
 int		sem_trylock(int sem_id);
+int		sem_checklock(int sem_id);
 int		sem_tryunlock(int sem_id);
 int		sem_unlock(int sem_id);
 

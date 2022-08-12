@@ -35,6 +35,11 @@ int		sem_tryunlock(int sem_id)
 	return (EXIT_FAILURE);
 }
 
+int		sem_checklock(int sem_id)
+{
+	return (semctl(sem_id, 1, GETVAL, 0));
+}
+
 int		sem_unlock(int sem_id)
 {
 	struct sembuf sem_b;
