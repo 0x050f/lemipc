@@ -5,13 +5,27 @@ void		recv_msg(struct ipc *ipc, char buff[256])
 	pid_t			pid;
 	int				nr;
 	struct msgbuf	msg;
+	struct msqid_ds	tmpbuf;
 
-	pid = getpid();
-	if ((nr = msgrcv(ipc->mq_id, &msg, sizeof(msg.mtext), pid, MSG_NOERROR)) >= 0)
+	if (msgctl(ipc->mq_id, IPC_STAT, &tmpbuf) < 0)
 	{
+		dprintf(STDERR_FILENO, "%s: msgctl(): %s\n", PRG_NAME, strerror(errno));
+		exit(EXIT_FAILURE); // TODO: remove
+	}
+	printf("===================\n");
+	printf("msgqnum: %d\n", tmpbuf.msg_qnum);
+	pid = getpid();
+	if ((nr = msgrcv(ipc->mq_id, &msg, 256, pid, 0)) >= 0)
+	{
+		printf("msgrcv: %s\n", msg.mtext);
 		append_msg_chatbox(ipc->chatbox, msg.mtext, nr);
 		if (buff)
 			memcpy(buff, msg.mtext, nr);
+	}
+	else
+	{
+		dprintf(STDERR_FILENO, "%s: msgrcv(): %s\n", PRG_NAME, strerror(errno));
+		exit(EXIT_FAILURE); //TODO: remove
 	}
 }
 
@@ -22,7 +36,7 @@ int			check_recv_msg(struct ipc *ipc)
 	struct msgbuf	msg;
 
 	pid = getpid();
-	if ((nr = msgrcv(ipc->mq_id, &msg, sizeof(msg.mtext), pid, MSG_NOERROR | IPC_NOWAIT)) >= 0)
+	if ((nr = msgrcv(ipc->mq_id, &msg, sizeof(msg.mtext), pid, IPC_NOWAIT)) >= 0)
 	{
 		append_msg_chatbox(ipc->chatbox, msg.mtext, nr);
 		return (EXIT_SUCCESS);
@@ -30,72 +44,63 @@ int			check_recv_msg(struct ipc *ipc)
 	return (EXIT_FAILURE);
 }
 
+void		send_msg_pid(struct ipc *ipc, pid_t pid, char *msg)
+{
+	int				size;
+	struct msgbuf	mbuf;
+
+	mbuf.mtype = pid;
+	size = strlen(msg);
+	memcpy(mbuf.mtext, msg, size);
+	if (msgsnd(ipc->mq_id, &mbuf, size, 0) < 0)
+	{
+		dprintf(STDERR_FILENO, "%s: msgsnd(): %s\n", PRG_NAME, strerror(errno));
+		exit(EXIT_FAILURE); //TODO: remove
+	}
+}
+
 void		send_msg_self(struct ipc *ipc, char *msg)
 {
-	struct msgbuf mbuf;
-	char buf[256];
-	pid_t pid;
+	pid_t		pid;
 
-	int size = strlen(msg);
-	if (size > 256)
-	{
-		sprintf(buf, "Message too long (max 256 char)");
-		send_msg_self(ipc, buf);
-		return ;
-	}
 	pid = getpid();
-	mbuf.mtype = pid;
-	memcpy(mbuf.mtext, msg, size);
-	msgsnd(ipc->mq_id, &mbuf, size, IPC_NOWAIT);
+	send_msg_pid(ipc, pid, msg);
 }
 
 void		send_msg_team(struct ipc *ipc, char *msg)
 {
-	struct msgbuf mbuf;
-	char buf[256];
+	pid_t		pid;
+	char		*msg_team;
 
-	int size = strlen(msg);
-	if (size - 3 > 256)
-	{
-		sprintf(buf, "Message too long (max 256 char)");
-		send_msg_self(ipc, buf);
+	pid = getpid();
+	msg_team = malloc(3 + strlen(msg));
+	if (!(msg_team)) // TODO: error malloc
 		return ;
-	}
-	sprintf(mbuf.mtext, "%d: ", ipc->player.team);
-	memcpy(mbuf.mtext + strlen(mbuf.mtext), msg, size);
+	sprintf(msg_team, "%d: %s", ipc->player.team, msg);
 	sem_lock(ipc->sem_id[PLAYERS]);
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
 	{
-		if (ipc->game->players[i].pid != -1)
-		{
-			mbuf.mtype = ipc->game->players[i].pid;
-			msgsnd(ipc->mq_id, &mbuf, size + 3, 0);
-		}
+		if (ipc->game->players[i].pid != -1 && ipc->game->players[i].pid != pid)
+			send_msg_pid(ipc, ipc->game->players[i].pid, msg_team);
+		else if (ipc->game->players[i].pid == pid)
+			append_msg_chatbox(ipc->chatbox, msg_team, strlen(msg_team));
 	}
 	sem_unlock(ipc->sem_id[PLAYERS]);
+	free(msg_team);
 }
 
 void		send_msg_broadcast(struct ipc *ipc, char *msg)
 {
-	struct msgbuf mbuf;
-	char buf[256];
+	pid_t		pid;
 
-	int size = strlen(msg);
-	if (size > 256)
-	{
-		sprintf(buf, "Message too long (max 256 char)");
-		send_msg_self(ipc, buf);
-		return ;
-	}
-	memcpy(mbuf.mtext, msg, size);
+	pid = getpid();
 	sem_lock(ipc->sem_id[PLAYERS]);
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
 	{
-		if (ipc->game->players[i].pid != -1)
-		{
-			mbuf.mtype = ipc->game->players[i].pid;
-			msgsnd(ipc->mq_id, &mbuf, size, 0);
-		}
+		if (ipc->game->players[i].pid != -1 && ipc->game->players[i].pid != pid)
+			send_msg_pid(ipc, ipc->game->players[i].pid, msg);
+		else if (ipc->game->players[i].pid == pid)
+			append_msg_chatbox(ipc->chatbox, msg, strlen(msg));
 	}
 	sem_unlock(ipc->sem_id[PLAYERS]);
 }

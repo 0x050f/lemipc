@@ -56,6 +56,7 @@ struct			ipc
 
 struct			game
 {
+	pid_t				pid_turn;
 	int					nb_players;
 	struct player		players[MAX_PLAYERS];
 	uint8_t				map[HEIGHT][WIDTH];
