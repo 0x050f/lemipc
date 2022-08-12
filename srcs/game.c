@@ -38,11 +38,13 @@ bool		is_circle(struct ipc *ipc)
 
 int		count_nb_teams(struct ipc *ipc)
 {
+	printf("COUNT NB TEAMS\n");
 	int				sum;
 	int				team_nb[10];
 	struct game		*game;
 
 	sem_lock(ipc->sem_id[PLAYERS]);
+	printf("<LOCK PLAYERS>\n");
 	memset(team_nb, 0, sizeof(team_nb));
 	game = ipc->game;
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
@@ -56,6 +58,7 @@ int		count_nb_teams(struct ipc *ipc)
 		if (team_nb[i])
 			sum++;
 	}
+	printf("<UNLOCK PLAYERS>\n");
 	sem_unlock(ipc->sem_id[PLAYERS]);
 	return (sum);
 }
@@ -160,18 +163,19 @@ void			get_closest_target(struct ipc *ipc, int *x, int *y)
 
 int		play_game(struct ipc *ipc)
 {
-	int nb_players;
+	int nb_teams;
 //	int x;
 //	int y;
 	char buf[256];
 
 	//show_game(ipc);
-	while ((count_nb_teams(ipc)) < 2)
+	nb_teams = count_nb_teams(ipc);
+	while (nb_teams < 2)
 	{
 		recv_msg(ipc, NULL); // wake up when recv msg
-//		show_game(ipc);
+		nb_teams = count_nb_teams(ipc);
 	}
-	while ((nb_players = count_nb_teams(ipc)) > 1)
+	while (nb_teams > 1)
 	{
 		printf("TRYLOCK\n");
 		if (sem_trylock(ipc->sem_id[PLAY]) == EXIT_SUCCESS)
@@ -196,10 +200,11 @@ int		play_game(struct ipc *ipc)
 			return(EXIT_SUCCESS);
 		}
 		printf("END_LOOP\n");
-//		usleep(10000);
+		nb_teams = count_nb_teams(ipc);
 	}
 //	show_game(ipc);
-	printf("You win !\n");
+//	if (ipc->game->nb_players != 1)
+//		send_msg_team(ipc, "We win !\n");
 	return (EXIT_SUCCESS);
 }
 
@@ -275,6 +280,8 @@ int		exit_game(struct ipc *ipc)
 	sem_tryunlock(ipc->sem_id[MAP]);
 	sem_tryunlock(ipc->sem_id[PLAYERS]);
 	sem_tryunlock(ipc->sem_id[PLAY]);
+	sprintf(buffer, "Player left team %d", ipc->player.team);
+	send_msg_broadcast(ipc, buffer);
 	sem_lock(ipc->sem_id[PLAYERS]);
 	if (game->nb_players)
 		game->nb_players--;
@@ -285,8 +292,6 @@ int		exit_game(struct ipc *ipc)
 	if (i != MAX_PLAYERS)
 		game->players[i].pid = -1;
 	sem_unlock(ipc->sem_id[PLAYERS]);
-	sprintf(buffer, "Player left team %d", ipc->player.team);
-	send_msg_broadcast(ipc, buffer);
 	sem_lock(ipc->sem_id[MAP]);
 	ipc->game->map[ipc->player.pos_y][ipc->player.pos_x] = ' ';
 	if (!nb_players)

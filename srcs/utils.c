@@ -16,9 +16,16 @@ int		sem_lock(int sem_id)
 
 int		sem_trylock(int sem_id)
 {
-	if (semctl(sem_id, 0, GETVAL, 0) != 0)
-		return (sem_lock(sem_id));
-	return (EXIT_FAILURE);
+	struct timespec timeout;
+	struct sembuf sem_b;
+
+	sem_b.sem_num = 0;
+	sem_b.sem_op = -1;
+	sem_b.sem_flg = 0;
+	timeout.tv_sec = 0;
+	timeout.tv_nsec = 1000;
+
+	return (semtimedop(sem_id, &sem_b, 1, &timeout));
 }
 
 int		sem_tryunlock(int sem_id)

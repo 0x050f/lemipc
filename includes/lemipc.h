@@ -1,6 +1,7 @@
 #ifndef LEMIPC_H
 # define LEMIPC_H
 
+# define _GNU_SOURCE
 # include <errno.h>
 # include <signal.h>
 # include <stdbool.h>
@@ -74,7 +75,7 @@ int		setup_chatbox(struct ipc *ipc);
 int		join_game(struct ipc *ipc);
 int		exit_game(struct ipc *ipc);
 
-struct msgbuf
+struct ipc_msgbuf
 {
 	long		mtype;
 	pid_t		mpid;
