@@ -10,7 +10,8 @@ void		recv_msg(struct ipc *ipc, char buff[256])
 		if (strncmp("OK", mbuf.mtext, nr - sizeof(mbuf.mpid)))
 		{
 			send_msg_pid(ipc, mbuf.mpid, "OK");
-			append_msg_chatbox(ipc->chatbox, mbuf.mtext, nr - sizeof(mbuf.mpid));
+			if (ipc->chatbox)
+				append_msg_chatbox(ipc->chatbox, mbuf.mtext, nr - sizeof(mbuf.mpid));
 			if (buff)
 				memcpy(buff, mbuf.mtext, nr);
 		}
@@ -21,6 +22,27 @@ void		recv_msg(struct ipc *ipc, char buff[256])
 		exit(EXIT_FAILURE); //TODO:
 	}
 }
+
+int			check_recv_msg(struct ipc *ipc, char buff[256])
+{
+	int						nr;
+	struct ipc_msgbuf		mbuf;
+
+	if ((nr = msgrcv(ipc->mq_id, &mbuf, sizeof(mbuf) - sizeof(mbuf.mtype), ipc->player.pid, IPC_NOWAIT)) >= 0)
+	{
+		if (strncmp("OK", mbuf.mtext, nr - sizeof(mbuf.mpid)))
+		{
+			send_msg_pid(ipc, mbuf.mpid, "OK");
+			if (ipc->chatbox)
+				append_msg_chatbox(ipc->chatbox, mbuf.mtext, nr - sizeof(mbuf.mpid));
+			if (buff)
+				memcpy(buff, mbuf.mtext, nr);
+		}
+		return (EXIT_SUCCESS);
+	}
+	return (EXIT_FAILURE);
+}
+
 
 void		send_msg_pid(struct ipc *ipc, pid_t pid, char *msg)
 {

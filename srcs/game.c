@@ -60,36 +60,45 @@ int		count_nb_teams(struct ipc *ipc)
 	return (sum);
 }
 
-void	move(struct ipc *ipc)
+bool		check_if_empty(struct ipc *ipc, int x, int y)
+{
+	return (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT &&
+				ipc->game->map[y][x] == ' ');
+}
+
+int			get_dist(int x1, int y1, int x2, int y2)
+{
+	return (sqrt(pow(y2 - y1, 2) + pow(x2 - x1, 2)));
+}
+
+void		move_random(struct ipc *ipc)
 {
 	int				move = -1;
+	int				new_pos_x, new_pos_y;
 	struct game		*game;
 	struct player	*player;
-	int				new_pos_x;
-	int				new_pos_y;
 
 	game = ipc->game;
 	player = &ipc->player;
-	sem_lock(ipc->sem_id[MAP]);
 	/* Check if can play otherwise pass */
-	if ((player->pos_x + 1 < WIDTH && game->map[player->pos_y][player->pos_x + 1] == ' ') ||
-	(player->pos_y + 1 < HEIGHT && game->map[player->pos_y + 1][player->pos_x] == ' ') ||
-	(player->pos_x - 1 >= 0 && game->map[player->pos_y][player->pos_x - 1] == ' ') ||
-	(player->pos_y - 1 >= 0 && game->map[player->pos_y - 1][player->pos_x] == ' '))
+	if (check_if_empty(ipc, player->pos_x + 1, player->pos_y) ||
+	check_if_empty(ipc, player->pos_x, player->pos_y + 1) ||
+	check_if_empty(ipc, player->pos_x - 1, player->pos_y) ||
+	check_if_empty(ipc, player->pos_x, player->pos_y - 1))
 	{
 		new_pos_x = player->pos_x;
 		new_pos_y = player->pos_y;
 		while (move == -1)
 		{
 			move = rand() % 4;
-			if (move == UP && player->pos_y - 1 >= 0 && game->map[player->pos_y - 1][player->pos_x] == ' ')
-				new_pos_y = player->pos_y - 1;
-			else if (move == DOWN && player->pos_y + 1 < HEIGHT && game->map[player->pos_y + 1][player->pos_x] == ' ')
-				new_pos_y = player->pos_y + 1;
-			else if (move == LEFT && player->pos_x - 1 >= 0 && game->map[player->pos_y][player->pos_x - 1] == ' ')
-				new_pos_x = player->pos_x - 1;
-			else if (move == RIGHT && player->pos_x + 1 < WIDTH && game->map[player->pos_y][player->pos_x + 1] == ' ')
-				new_pos_x = player->pos_x + 1;
+			if (move == UP && check_if_empty(ipc, player->pos_x, player->pos_y - 1))
+				new_pos_y--;
+			else if (move == DOWN && check_if_empty(ipc, player->pos_x, player->pos_y + 1))
+				new_pos_y++;
+			else if (move == LEFT && check_if_empty(ipc, player->pos_x - 1, player->pos_y))
+				new_pos_x--;
+			else if (move == RIGHT && check_if_empty(ipc, player->pos_x + 1, player->pos_y))
+				new_pos_x++;
 			else
 				move = -1;
 		}
@@ -98,6 +107,38 @@ void	move(struct ipc *ipc)
 		player->pos_x = new_pos_x;
 		player->pos_y = new_pos_y;
 	}
+}
+
+void		move(struct ipc *ipc, int x, int y)
+{
+	struct game		*game;
+	struct player	*player;
+	int				distance;
+
+	game = ipc->game;
+	player = &ipc->player;
+	distance = get_dist(player->pos_x, player->pos_y, x, y);
+	sem_lock(ipc->sem_id[MAP]);
+	game->map[player->pos_y][player->pos_x] = ' ';
+	if (check_if_empty(ipc, player->pos_x - 1, player->pos_y)
+&& distance > get_dist(player->pos_x - 1, player->pos_y, x, y))
+		player->pos_x--;
+	else if (check_if_empty(ipc, player->pos_x, player->pos_y - 1)
+&& distance > get_dist(player->pos_x, player->pos_y - 1, x, y))
+		player->pos_y--;
+	else if (check_if_empty(ipc, player->pos_x + 1, player->pos_y)
+&& distance > get_dist(player->pos_x + 1, player->pos_y, x, y))
+		player->pos_x++;
+	else if (check_if_empty(ipc, player->pos_x, player->pos_y + 1)
+&& distance > get_dist(player->pos_x, player->pos_y + 1, x, y))
+		player->pos_y++;
+	else
+	{
+		move_random(ipc);
+		sem_unlock(ipc->sem_id[MAP]);
+		return ;
+	}
+	game->map[player->pos_y][player->pos_x] = player->team + '0';
 	sem_unlock(ipc->sem_id[MAP]);
 }
 
@@ -108,7 +149,7 @@ bool		check_if_target(struct ipc *ipc, int x, int y)
 				ipc->game->map[y][x] != ipc->player.team + '0');
 }
 
-void			get_closest_target(struct ipc *ipc, int *x, int *y)
+int			get_closest_target(struct ipc *ipc, int *x, int *y)
 {
 	int max_dist = (HEIGHT - 1) + (WIDTH - 1);
 
@@ -122,23 +163,26 @@ void			get_closest_target(struct ipc *ipc, int *x, int *y)
 			if (check_if_target(ipc, *x, *y))
 			{
 				sem_unlock(ipc->sem_id[MAP]);
-				return ;
+				return (EXIT_SUCCESS);
 			}
 			*x = ipc->player.pos_x - d + abs(i);
 			if (check_if_target(ipc, *x, *y))
 			{
 				sem_unlock(ipc->sem_id[MAP]);
-				return ;
+				return (EXIT_SUCCESS);
 			}
 		}
 	}
 	sem_unlock(ipc->sem_id[MAP]);
+	return (EXIT_FAILURE);
 }
 
 int		play_game(struct ipc *ipc)
 {
-	int nb_teams;
-	char buf[256];
+	int		locked = 0;
+	int		nb_players;
+	int		nb_teams;
+	char	buf[256];
 
 	show_game(ipc);
 	nb_teams = count_nb_teams(ipc);
@@ -149,43 +193,76 @@ int		play_game(struct ipc *ipc)
 	}
 	while (nb_teams > 1)
 	{
+		show_game(ipc);
 		if (sem_trylock(ipc->sem_id[PLAY]) == EXIT_SUCCESS)
 		{
+			locked = 1;
 			sem_lock(ipc->sem_id[PLAYERS]);
-			int nb_players = ipc->game->nb_players;
+			nb_players = ipc->game->nb_players;
 			sem_unlock(ipc->sem_id[PLAYERS]);
 			/* TODO: Get msg from team */
+			int x, y;
+			int target_x, target_y = -1;
+			int team;
 			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
-				recv_msg(ipc, NULL);
+			{
+				recv_msg(ipc, buf);
+				if (sscanf(buf, "%d: attack (x: %d, y: %d)", &team, &x, &y) == 3)
+				{
+					if (team == ipc->player.team)
+					{
+						target_x = x;
+						target_y = x;
+					}
+				}
+			}
 			ipc->game->pid_turn = ipc->player.pid;
-			/* TODO: strat */
-			move(ipc);//, x, y);
-			sprintf(buf, "Player from team %d moved (x: %d, y: %d)", ipc->player.team, ipc->player.pos_x, ipc->player.pos_y);
+			if ((target_x == -1 || target_y == -1) &&
+get_closest_target(ipc, &target_x, &target_y) == EXIT_FAILURE)
+				sprintf(buf, "Player from team %d didn't moved");
+			else
+			{
+				move(ipc, target_x, target_y);
+				sprintf(buf, "Player from team %d moved (x: %d, y: %d)", ipc->player.team, ipc->player.pos_x, ipc->player.pos_y);
+			}
 			send_msg_broadcast(ipc, buf);
-			sem_unlock(ipc->sem_id[PLAY]);
 		}
 		else
 		{
+			locked = 0;
 			int x, y;
 			get_closest_target(ipc, &x, &y);
 			sprintf(buf, "attack (x: %d, y: %d)", x, y);
 			send_msg_team(ipc, buf);
 			sem_lock(ipc->sem_id[PLAYERS]);
-			int nb_players = ipc->game->nb_players;
+			nb_players = ipc->game->nb_players;
 			sem_unlock(ipc->sem_id[PLAYERS]);
 			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
 				recv_msg(ipc, NULL);
 		}
-		show_game(ipc);
 		if (is_circle(ipc))
 		{
-			printf("You lose !\n");
+			sprintf(buf, "I'm dead !");
+			send_msg_team(ipc, buf);
+			show_game(ipc);
+			exit_game(ipc);
+			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
+				recv_msg(ipc, NULL);
 			return(EXIT_SUCCESS);
 		}
+		sprintf(buf, "Ready for next turn !");
+		send_msg_team(ipc, buf);
+		for (size_t i = 0; i < (size_t)nb_players - 1; i++)
+			recv_msg(ipc, NULL);
+		if (locked)
+			sem_unlock(ipc->sem_id[PLAY]);
 		usleep(100000);
 		nb_teams = count_nb_teams(ipc);
 	}
-	printf("You win!\n");
+	sprintf(buf, "You win !");
+	send_msg_self(ipc, buf);
+	show_game(ipc);
+	exit_game(ipc);
 	return (EXIT_SUCCESS);
 }
 
@@ -225,8 +302,8 @@ int		join_game(struct ipc *ipc)
 	player = &ipc->player;
 	game = ipc->game;
 	player->pid = getpid();
-	sem_lock(ipc->sem_id[PLAYERS]);
 	sem_lock(ipc->sem_id[PLAY]);
+	sem_lock(ipc->sem_id[PLAYERS]);
 	size_t i = 0;
 	while (i < MAX_PLAYERS && game->players[i].pid != -1)
 		i++;
@@ -261,7 +338,7 @@ int		join_game(struct ipc *ipc)
 	return (play_game(ipc));
 }
 
-int		exit_game(struct ipc *ipc)
+int		remove_player(struct ipc *ipc)
 {
 	struct game		*game;
 	int				nb_players;
@@ -280,6 +357,14 @@ int		exit_game(struct ipc *ipc)
 	ipc->game->map[ipc->player.pos_y][ipc->player.pos_x] = ' ';
 	sem_unlock(ipc->sem_id[MAP]);
 	sem_unlock(ipc->sem_id[PLAYERS]);
+	return (nb_players);
+}
+
+int		exit_game(struct ipc *ipc)
+{
+	int nb_players;
+
+	nb_players = remove_player(ipc);
 	if (!nb_players) // DELETE IPCS
 	{
 		shmdt(ipc->game);
@@ -293,5 +378,7 @@ int		exit_game(struct ipc *ipc)
 	}
 	shmdt(ipc->game);
 	free(ipc->chatbox);
+	ipc->game = NULL;
+	ipc->chatbox = NULL;
 	return (EXIT_SUCCESS);
 }

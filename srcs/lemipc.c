@@ -2,7 +2,7 @@
 
 struct ipc	g_ipc;
 
-void		signal_handler(int signum)
+void		signal_end_game(int signum)
 {
 	(void)signum;
 	struct player	*players;
@@ -75,7 +75,7 @@ int			lemipc(struct ipc *ipc)
 {
 	key_t			keys[3];
 
-	if (signal(SIGINT, signal_handler) == SIG_ERR)
+	if (signal(SIGINT, signal_end_game) == SIG_ERR)
 	{
 		dprintf(STDERR_FILENO, "%s: signal(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
@@ -108,7 +108,6 @@ int			lemipc(struct ipc *ipc)
 	if (setup_chatbox(ipc) == EXIT_FAILURE)
 		return (EXIT_FAILURE);
 	join_game(ipc);
-	exit_game(ipc);
 	return (EXIT_SUCCESS);
 }
 

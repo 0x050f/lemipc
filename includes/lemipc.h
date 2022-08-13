@@ -3,6 +3,7 @@
 
 # define _GNU_SOURCE
 # include <errno.h>
+# include <math.h>
 # include <signal.h>
 # include <stdbool.h>
 # include <stdint.h>
@@ -63,6 +64,9 @@ struct			game
 	uint8_t				map[HEIGHT][WIDTH];
 };
 
+/* lemipc.c */
+void	signal_end_game(int signum);
+
 /* screen.c */
 void	show_map(struct game *game, struct player *player);
 void	show_chatbox(uint8_t *chatbox);
@@ -73,6 +77,7 @@ void	show_game(struct ipc *ipc);
 int		create_game(struct ipc *ipc);
 int		setup_chatbox(struct ipc *ipc);
 int		join_game(struct ipc *ipc);
+int		remove_player(struct ipc *ipc);
 int		exit_game(struct ipc *ipc);
 
 struct ipc_msgbuf
@@ -84,6 +89,7 @@ struct ipc_msgbuf
 
 /* msg.c */
 void	recv_msg(struct ipc *ipc, char buff[256]);
+int		check_recv_msg(struct ipc *ipc, char buff[256]);
 void	send_msg_pid(struct ipc *ipc, pid_t pid, char *msg);
 void	send_msg_self(struct ipc *ipc, char *msg);
 void	send_msg_team(struct ipc *ipc, char *msg);

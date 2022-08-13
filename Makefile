@@ -27,7 +27,7 @@ endif
 all:		$(NAME)
 
 $(NAME):	$(OBJS) $(addprefix $(DIR_HEADERS), $(INCLUDES))
-			$(CC) $(CC_FLAGS) -I $(DIR_HEADERS) $(OBJS) -o $(NAME)
+			$(CC) $(CC_FLAGS) -I $(DIR_HEADERS) $(OBJS) -o $(NAME) -lm
 
 $(OBJS):	| $(DIR_OBJS)
 
