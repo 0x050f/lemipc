@@ -110,44 +110,21 @@ bool		check_if_target(struct ipc *ipc, int x, int y)
 
 void			get_closest_target(struct ipc *ipc, int *x, int *y)
 {
-	int xs = ipc->player.pos_x;
-	int ys = ipc->player.pos_y;
-	int max_dist = (HEIGHT > WIDTH) ? HEIGHT : WIDTH;
+	int max_dist = (HEIGHT - 1) + (WIDTH - 1);
 
 	sem_lock(ipc->sem_id[MAP]);
 	for (int d = 1; d < max_dist; d++)
 	{
-		for (int i = 0; i < d + 1; i++)
+		for (int i = -d; i <= d; i++)
 		{
-			*x = xs - d + i;
-			*y = ys - i;
+			*x = ipc->player.pos_x + d - abs(i);
+			*y = ipc->player.pos_y + i;
 			if (check_if_target(ipc, *x, *y))
 			{
 				sem_unlock(ipc->sem_id[MAP]);
 				return ;
 			}
-
-			*x = xs + d - i;
-			*y = ys + i;
-			if (check_if_target(ipc, *x, *y))
-			{
-				sem_unlock(ipc->sem_id[MAP]);
-				return ;
-			}
-		}
-
-		for (int i = 1; i < d; i++)
-		{
-			*x = xs - i;
-			*y = ys + d - i;
-			if (check_if_target(ipc, *x, *y))
-			{
-				sem_unlock(ipc->sem_id[MAP]);
-				return ;
-			}
-
-			*x = xs + i;
-			*y = ys - d + i;
+			*x = ipc->player.pos_x - d + abs(i);
 			if (check_if_target(ipc, *x, *y))
 			{
 				sem_unlock(ipc->sem_id[MAP]);
@@ -180,7 +157,7 @@ int		play_game(struct ipc *ipc)
 			/* TODO: Get msg from team */
 			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
 				recv_msg(ipc, NULL);
-			ipc->game->pid_turn = getpid();
+			ipc->game->pid_turn = ipc->player.pid;
 			/* TODO: strat */
 			move(ipc);//, x, y);
 			sprintf(buf, "Player from team %d moved (x: %d, y: %d)", ipc->player.team, ipc->player.pos_x, ipc->player.pos_y);
@@ -288,9 +265,7 @@ int		exit_game(struct ipc *ipc)
 {
 	struct game		*game;
 	int				nb_players;
-	pid_t			pid;
 
-	pid = getpid();
 	game = ipc->game;
 	sem_lock(ipc->sem_id[PLAYERS]);
 	sem_lock(ipc->sem_id[MAP]);
@@ -298,7 +273,7 @@ int		exit_game(struct ipc *ipc)
 		game->nb_players--;
 	nb_players = game->nb_players;
 	size_t i = 0;
-	while (i < MAX_PLAYERS && game->players[i].pid != pid)
+	while (i < MAX_PLAYERS && game->players[i].pid != ipc->player.pid)
 		i++;
 	if (i != MAX_PLAYERS)
 		game->players[i].pid = -1;

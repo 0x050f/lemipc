@@ -6,9 +6,7 @@ void		signal_handler(int signum)
 {
 	(void)signum;
 	struct player	*players;
-	pid_t			pid;
 
-	pid = getpid();
 	if (g_ipc.game)
 	{
 		sem_tryunlock(g_ipc.sem_id[MAP]);
@@ -17,7 +15,7 @@ void		signal_handler(int signum)
 		sem_lock(g_ipc.sem_id[PLAYERS]);
 		for (size_t i = 0; i < MAX_PLAYERS; i++)
 		{
-			if (players[i].pid != -1 && players[i].pid != pid)
+			if (players[i].pid != -1 && players[i].pid != g_ipc.player.pid)
 				kill(players[i].pid, SIGINT);
 			players[i].pid = -1;
 		}

@@ -2,12 +2,10 @@
 
 void		recv_msg(struct ipc *ipc, char buff[256])
 {
-	pid_t					pid;
 	int						nr;
 	struct ipc_msgbuf		mbuf;
 
-	pid = getpid();
-	if ((nr = msgrcv(ipc->mq_id, &mbuf, sizeof(mbuf) - sizeof(mbuf.mtype), pid, 0)) >= 0)
+	if ((nr = msgrcv(ipc->mq_id, &mbuf, sizeof(mbuf) - sizeof(mbuf.mtype), ipc->player.pid, 0)) >= 0)
 	{
 		if (strncmp("OK", mbuf.mtext, nr - sizeof(mbuf.mpid)))
 		{
@@ -31,7 +29,7 @@ void		send_msg_pid(struct ipc *ipc, pid_t pid, char *msg)
 
 	memset(&mbuf, 0, sizeof(mbuf));
 	mbuf.mtype = pid;
-	mbuf.mpid = getpid();
+	mbuf.mpid = ipc->player.pid;
 	size = strlen(msg);
 	memcpy(mbuf.mtext, msg, size);
 	if (msgsnd(ipc->mq_id, &mbuf, size + sizeof(mbuf.mpid), 0) < 0)
@@ -50,20 +48,18 @@ void		send_msg_team(struct ipc *ipc, char *msg)
 {
 	char			msg_team[260];
 	int				total;
-	pid_t			pid;
 
 	total = 0;
-	pid = getpid();
 	sprintf(msg_team, "%d: %s", ipc->player.team, msg);
 	sem_lock(ipc->sem_id[PLAYERS]);
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
 	{
-		if (ipc->game->players[i].pid != -1 && ipc->game->players[i].pid != pid)
+		if (ipc->game->players[i].pid != -1 && ipc->game->players[i].pid != ipc->player.pid)
 		{
 			send_msg_pid(ipc, ipc->game->players[i].pid, msg_team);
 			total++;
 		}
-		else if (ipc->game->players[i].pid == pid)
+		else if (ipc->game->players[i].pid == ipc->player.pid)
 			send_msg_self(ipc, msg_team);
 	}
 	sem_unlock(ipc->sem_id[PLAYERS]);
@@ -74,19 +70,17 @@ void		send_msg_team(struct ipc *ipc, char *msg)
 void		send_msg_broadcast(struct ipc *ipc, char *msg)
 {
 	int			total;
-	pid_t		pid;
 
 	total = 0;
-	pid = getpid();
 	sem_lock(ipc->sem_id[PLAYERS]);
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
 	{
-		if (ipc->game->players[i].pid != -1 && ipc->game->players[i].pid != pid)
+		if (ipc->game->players[i].pid != -1 && ipc->game->players[i].pid != ipc->player.pid)
 		{
 			send_msg_pid(ipc, ipc->game->players[i].pid, msg);
 			total++;
 		}
-		else if (ipc->game->players[i].pid == pid)
+		else if (ipc->game->players[i].pid == ipc->player.pid)
 			send_msg_self(ipc, msg);
 	}
 	sem_unlock(ipc->sem_id[PLAYERS]);
