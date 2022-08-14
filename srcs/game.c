@@ -35,7 +35,7 @@ void		play_turn(struct ipc *ipc, int nb_players)
 	}
 	ipc->game->pid_turn = ipc->player.pid;
 	if (target_x == -1 || target_y == -1)
-		sprintf(buf, "Player from team %d didn't moved", ipc->player.team);
+		sprintf(buf, "Player from team %d didn't moved (no instr)", ipc->player.team);
 	else
 	{
 		move(ipc, target_x, target_y);
