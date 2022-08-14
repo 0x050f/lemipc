@@ -13,9 +13,59 @@ int		waiting_game(struct ipc *ipc)
 	return (nb_teams);
 }
 
+void		play_turn(struct ipc *ipc, int nb_players)
+{
+	char	buf[256];
+	int		x, y;
+	int		target_x, target_y = -1;
+	int		team;
+
+	for (size_t i = 0; i < (size_t)nb_players - 1; i++)
+	{
+		recv_msg(ipc, buf);
+		if (sscanf(buf, "%d: attack (x: %d, y: %d)", &team, &x, &y) == 3)
+		{
+			if (team == ipc->player.team)
+			{
+				target_x = x;
+				target_y = y;
+			}
+		}
+	}
+	ipc->game->pid_turn = ipc->player.pid;
+	if (target_x == -1 || target_y == -1)
+		sprintf(buf, "Player from team %d didn't moved", ipc->player.team);
+	else
+	{
+		move(ipc, target_x, target_y);
+		sprintf(buf, "Player from team %d moved (x: %d, y: %d)", ipc->player.team, ipc->player.pos_x, ipc->player.pos_y);
+	}
+	send_msg_broadcast(ipc, buf);
+}
+
+void		lose_game(struct ipc *ipc, int nb_players)
+{
+	char	buf[256];
+
+	sem_lock(ipc->sem_id[PLAYERS]);
+	for (size_t i = 0; i < (size_t)nb_players - 1; i++)
+	{
+		if (ipc->game->players[i].pid == ipc->player.pid)
+			ipc->game->players[i].team = -1;
+	}
+	sem_unlock(ipc->sem_id[PLAYERS]);
+	sprintf(buf, "I'm dead !");
+	send_msg_team(ipc, buf);
+	recv_mult_msg(ipc, nb_players - 1);
+	sprintf(buf, "You lose !");
+	send_msg_self(ipc, buf);
+	show_game(ipc);
+}
+
 int		play_game(struct ipc *ipc)
 {
 	int		locked = 0;
+	int		x, y;
 	int		nb_players;
 	int		nb_teams;
 	char	buf[256];
@@ -31,65 +81,22 @@ int		play_game(struct ipc *ipc)
 			sem_lock(ipc->sem_id[PLAYERS]);
 			nb_players = ipc->game->nb_players;
 			sem_unlock(ipc->sem_id[PLAYERS]);
-			int x, y;
-			int target_x, target_y = -1;
-			int team;
-			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
-			{
-				recv_msg(ipc, buf);
-				if (sscanf(buf, "%d: attack (x: %d, y: %d)", &team, &x, &y) == 3)
-				{
-					if (team == ipc->player.team)
-					{
-						target_x = x;
-						target_y = y;
-					}
-				}
-				else
-				{
-					dprintf(STDERR_FILENO, "beep boop bang: %s !\n", buf);
-					exit(EXIT_FAILURE);
-				}
-			}
-			ipc->game->pid_turn = ipc->player.pid;
-			if (target_x == -1 || target_y == -1)
-				sprintf(buf, "Player from team %d didn't moved", ipc->player.team);
-			else
-			{
-				move(ipc, target_x, target_y);
-				sprintf(buf, "Player from team %d moved (x: %d, y: %d)", ipc->player.team, ipc->player.pos_x, ipc->player.pos_y);
-			}
-			send_msg_broadcast(ipc, buf);
+			play_turn(ipc, nb_players);
 		}
 		else
 		{
 			locked = 0;
-			int x, y;
 			get_closest_target(ipc, &x, &y);
 			sprintf(buf, "attack (x: %d, y: %d)", x, y);
 			send_msg_team(ipc, buf);
 			sem_lock(ipc->sem_id[PLAYERS]);
 			nb_players = ipc->game->nb_players;
 			sem_unlock(ipc->sem_id[PLAYERS]);
-			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
-				recv_msg(ipc, NULL);
+			recv_mult_msg(ipc, nb_players - 1);
 		}
 		if (is_circle(ipc))
 		{
-			sem_lock(ipc->sem_id[PLAYERS]);
-			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
-			{
-				if (ipc->game->players[i].pid == ipc->player.pid)
-					ipc->game->players[i].team = -1;
-			}
-			sem_unlock(ipc->sem_id[PLAYERS]);
-			sprintf(buf, "I'm dead !");
-			send_msg_team(ipc, buf);
-			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
-				recv_msg(ipc, NULL);
-			sprintf(buf, "You lose !");
-			send_msg_self(ipc, buf);
-			show_game(ipc);
+			lose_game(ipc, nb_players);
 			if (locked)
 				sem_unlock(ipc->sem_id[PLAY]);
 			return(EXIT_SUCCESS);
@@ -97,8 +104,7 @@ int		play_game(struct ipc *ipc)
 		sprintf(buf, "Ready for next turn !");
 		send_msg_team(ipc, buf);
 		show_game(ipc);
-		for (size_t i = 0; i < (size_t)nb_players - 1; i++)
-			recv_msg(ipc, NULL);
+		recv_mult_msg(ipc, nb_players - 1);
 		if (locked)
 			sem_unlock(ipc->sem_id[PLAY]);
 		usleep(100000);
@@ -172,10 +178,7 @@ int		join_game(struct ipc *ipc)
 	memcpy(&game->players[i], player, sizeof(struct player));
 	sem_unlock(ipc->sem_id[MAP]);
 	if (nb_teams > 1)
-	{
-		for (size_t i = 0; i < (size_t)nb_players - 1; i++)
-			recv_msg(ipc, NULL);
-	}
+		recv_mult_msg(ipc, nb_players - 1);
 	sprintf(buf, "Player joined team %d", player->team);
 	send_msg_broadcast(ipc, buf);
 	if (nb_teams > 1)
@@ -183,8 +186,7 @@ int		join_game(struct ipc *ipc)
 		sprintf(buf, "Ready for next turn !");
 		send_msg_team(ipc, buf);
 		show_game(ipc);
-		for (size_t i = 0; i < (size_t)nb_players - 1; i++)
-			recv_msg(ipc, NULL);
+		recv_mult_msg(ipc, nb_players - 1);
 	}
 	sem_unlock(ipc->sem_id[PLAY]);
 	return (play_game(ipc));

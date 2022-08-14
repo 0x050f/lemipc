@@ -94,7 +94,7 @@ struct ipc_msgbuf
 };
 
 /* msg.c */
-void	recv_all_msg(struct ipc *ipc);
+void	recv_mult_msg(struct ipc *ipc, int nb);
 void	recv_msg(struct ipc *ipc, char buff[256]);
 void	send_msg_pid(struct ipc *ipc, pid_t pid, char *msg);
 void	send_msg_self(struct ipc *ipc, char *msg);

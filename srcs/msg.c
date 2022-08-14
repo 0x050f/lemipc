@@ -1,13 +1,8 @@
 #include "lemipc.h"
 
-void		recv_all_msg(struct ipc *ipc)
+void		recv_mult_msg(struct ipc *ipc, int nb)
 {
-	int nb_players;
-
-	sem_lock(ipc->sem_id[PLAYERS]);
-	nb_players = ipc->game->nb_players;
-	sem_unlock(ipc->sem_id[PLAYERS]);
-	for (size_t i = 0; i < (size_t)nb_players - 1; i++)
+	for (size_t i = 0; i < (size_t)nb; i++)
 		recv_msg(ipc, NULL);
 }
 
