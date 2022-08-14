@@ -1,5 +1,16 @@
 #include "lemipc.h"
 
+void		recv_all_msg(struct ipc *ipc)
+{
+	int nb_players;
+
+	sem_lock(ipc->sem_id[PLAYERS]);
+	nb_players = ipc->game->nb_players;
+	sem_unlock(ipc->sem_id[PLAYERS]);
+	for (size_t i = 0; i < (size_t)nb_players - 1; i++)
+		recv_msg(ipc, NULL);
+}
+
 void		recv_msg(struct ipc *ipc, char buff[256])
 {
 	int						nr;
@@ -15,26 +26,9 @@ void		recv_msg(struct ipc *ipc, char buff[256])
 	else
 	{
 		dprintf(STDERR_FILENO, "%s: msgrcv(): %s\n", PRG_NAME, strerror(errno));
-		exit(EXIT_FAILURE); //TODO:
+		exit_game(ipc);
 	}
 }
-
-int			check_recv_msg(struct ipc *ipc, char buff[256])
-{
-	int						nr;
-	struct ipc_msgbuf		mbuf;
-
-	if ((nr = msgrcv(ipc->mq_id, &mbuf, sizeof(mbuf) - sizeof(mbuf.mtype), ipc->player.pid, IPC_NOWAIT)) >= 0)
-	{
-		if (ipc->chatbox)
-			append_msg_chatbox(ipc->chatbox, mbuf.mtext, nr - sizeof(mbuf.mpid));
-		if (buff)
-			memcpy(buff, mbuf.mtext, nr);
-		return (EXIT_SUCCESS);
-	}
-	return (EXIT_FAILURE);
-}
-
 
 void		send_msg_pid(struct ipc *ipc, pid_t pid, char *msg)
 {
@@ -49,7 +43,7 @@ void		send_msg_pid(struct ipc *ipc, pid_t pid, char *msg)
 	if (msgsnd(ipc->mq_id, &mbuf, size + sizeof(mbuf.mpid), 0) < 0)
 	{
 		dprintf(STDERR_FILENO, "%s: msgsnd(): %s\n", PRG_NAME, strerror(errno));
-		exit(EXIT_FAILURE); //TODO: remove
+		exit_game(ipc);
 	}
 }
 

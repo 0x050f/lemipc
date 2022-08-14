@@ -18,7 +18,6 @@
 # include <time.h>
 # include <unistd.h>
 
-
 # define PRG_NAME	"lemipc"
 
 struct			player
@@ -80,6 +79,13 @@ int		join_game(struct ipc *ipc);
 int		remove_player(struct ipc *ipc);
 int		exit_game(struct ipc *ipc);
 
+/* strat.c */
+bool		is_circle(struct ipc *ipc);
+int			count_nb_teams(struct ipc *ipc);
+void		move_random(struct ipc *ipc);
+void		move(struct ipc *ipc, int x, int y);
+int			get_closest_target(struct ipc *ipc, int *x, int *y);
+
 struct ipc_msgbuf
 {
 	long		mtype;
@@ -88,14 +94,15 @@ struct ipc_msgbuf
 };
 
 /* msg.c */
+void	recv_all_msg(struct ipc *ipc);
 void	recv_msg(struct ipc *ipc, char buff[256]);
-int		check_recv_msg(struct ipc *ipc, char buff[256]);
 void	send_msg_pid(struct ipc *ipc, pid_t pid, char *msg);
 void	send_msg_self(struct ipc *ipc, char *msg);
 void	send_msg_team(struct ipc *ipc, char *msg);
 void	send_msg_broadcast(struct ipc *ipc, char *msg);
 
-/* utils.c */
+
+/* sem.c */
 int		sem_lock(int sem_id);
 int		sem_trylock(int sem_id);
 int		sem_tryunlock(int sem_id);
