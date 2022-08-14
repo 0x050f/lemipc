@@ -45,9 +45,14 @@ int		play_game(struct ipc *ipc)
 						target_y = y;
 					}
 				}
+				else
+				{
+					dprintf(STDERR_FILENO, "beep boop bang: %s !\n", buf);
+					exit(EXIT_FAILURE);
+				}
 			}
 			ipc->game->pid_turn = ipc->player.pid;
-			if ((target_x == -1 || target_y == -1))
+			if (target_x == -1 || target_y == -1)
 				sprintf(buf, "Player from team %d didn't moved", ipc->player.team);
 			else
 			{
@@ -85,11 +90,13 @@ int		play_game(struct ipc *ipc)
 			sprintf(buf, "You lose !");
 			send_msg_self(ipc, buf);
 			show_game(ipc);
+			if (locked)
+				sem_unlock(ipc->sem_id[PLAY]);
 			return(EXIT_SUCCESS);
 		}
 		sprintf(buf, "Ready for next turn !");
-		show_game(ipc);
 		send_msg_team(ipc, buf);
+		show_game(ipc);
 		for (size_t i = 0; i < (size_t)nb_players - 1; i++)
 			recv_msg(ipc, NULL);
 		if (locked)
@@ -164,13 +171,21 @@ int		join_game(struct ipc *ipc)
 	game->map[player->pos_y][player->pos_x] = player->team + '0';
 	memcpy(&game->players[i], player, sizeof(struct player));
 	sem_unlock(ipc->sem_id[MAP]);
-	if (nb_teams > 2)
+	if (nb_teams > 1)
 	{
 		for (size_t i = 0; i < (size_t)nb_players - 1; i++)
 			recv_msg(ipc, NULL);
 	}
 	sprintf(buf, "Player joined team %d", player->team);
 	send_msg_broadcast(ipc, buf);
+	if (nb_teams > 1)
+	{
+		sprintf(buf, "Ready for next turn !");
+		send_msg_team(ipc, buf);
+		show_game(ipc);
+		for (size_t i = 0; i < (size_t)nb_players - 1; i++)
+			recv_msg(ipc, NULL);
+	}
 	sem_unlock(ipc->sem_id[PLAY]);
 	return (play_game(ipc));
 }

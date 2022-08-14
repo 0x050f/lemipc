@@ -51,7 +51,7 @@ struct			ipc
 };
 
 # define HEIGHT			4
-# define WIDTH			4
+# define WIDTH			20
 
 # define MAX_PLAYERS	HEIGHT * WIDTH
 
