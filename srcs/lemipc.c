@@ -73,6 +73,7 @@ int			create_ipc(struct ipc *ipc, key_t keys[3])
 
 int			lemipc(struct ipc *ipc)
 {
+	int				nb_teams;
 	key_t			keys[3];
 
 	if (signal(SIGINT, signal_end_game) == SIG_ERR)
@@ -107,8 +108,14 @@ int			lemipc(struct ipc *ipc)
 	}
 	if (setup_chatbox(ipc) == EXIT_FAILURE)
 		return (EXIT_FAILURE);
+	nb_teams = count_nb_teams(ipc);
 	if (join_game(ipc) == EXIT_SUCCESS)
+	{
+		if (nb_teams < 2)
+			waiting_game(ipc);
+		play_game(ipc);
 		exit_game(ipc);
+	}
 	return (EXIT_SUCCESS);
 }
 

@@ -50,8 +50,8 @@ struct			ipc
 	uint8_t			*chatbox;
 };
 
-# define HEIGHT			2
-# define WIDTH			2
+# define HEIGHT			4
+# define WIDTH			20
 
 # define MAX_PLAYERS	HEIGHT * WIDTH
 
@@ -75,9 +75,11 @@ void	show_game(struct ipc *ipc);
 /* game.c */
 int		create_game(struct ipc *ipc);
 int		setup_chatbox(struct ipc *ipc);
+void	play_game(struct ipc *ipc);
 int		join_game(struct ipc *ipc);
+void	waiting_game(struct ipc *ipc);
 int		remove_player(struct ipc *ipc);
-int		exit_game(struct ipc *ipc);
+void	exit_game(struct ipc *ipc);
 
 /* strat.c */
 bool		is_circle(struct ipc *ipc);
@@ -85,6 +87,7 @@ int			count_nb_teams(struct ipc *ipc);
 void		move_random(struct ipc *ipc);
 void		move(struct ipc *ipc, int x, int y);
 int			get_closest_target(struct ipc *ipc, int *x, int *y);
+
 
 struct ipc_msgbuf
 {

@@ -1,16 +1,17 @@
 #include "lemipc.h"
 
-int		waiting_game(struct ipc *ipc)
+void	waiting_game(struct ipc *ipc)
 {
 	int nb_teams;
 
+	show_game(ipc);
 	nb_teams = count_nb_teams(ipc);
 	while (nb_teams < 2)
 	{
 		recv_msg(ipc, NULL); // wake up when recv msg
+		show_game(ipc);
 		nb_teams = count_nb_teams(ipc);
 	}
-	return (nb_teams);
 }
 
 void		play_turn(struct ipc *ipc, int nb_players)
@@ -62,7 +63,7 @@ void		lose_game(struct ipc *ipc, int nb_players)
 	show_game(ipc);
 }
 
-int		play_game(struct ipc *ipc)
+void		play_game(struct ipc *ipc)
 {
 	int		locked = 0;
 	int		x, y;
@@ -71,7 +72,7 @@ int		play_game(struct ipc *ipc)
 	char	buf[256];
 
 	show_game(ipc);
-	nb_teams = waiting_game(ipc);
+	nb_teams = count_nb_teams(ipc);
 	while (nb_teams > 1)
 	{
 		show_game(ipc);
@@ -99,7 +100,7 @@ int		play_game(struct ipc *ipc)
 			lose_game(ipc, nb_players);
 			if (locked)
 				sem_unlock(ipc->sem_id[PLAY]);
-			return(EXIT_SUCCESS);
+			return ;
 		}
 		sprintf(buf, "Ready for next turn !");
 		send_msg_team(ipc, buf);
@@ -113,7 +114,6 @@ int		play_game(struct ipc *ipc)
 	sprintf(buf, "You win !");
 	send_msg_self(ipc, buf);
 	show_game(ipc);
-	return (EXIT_SUCCESS);
 }
 
 int		setup_chatbox(struct ipc *ipc)
@@ -190,7 +190,7 @@ int		join_game(struct ipc *ipc)
 		recv_mult_msg(ipc, nb_players - 1);
 	}
 	sem_unlock(ipc->sem_id[PLAY]);
-	return (play_game(ipc));
+	return (EXIT_SUCCESS);
 }
 
 int		remove_player(struct ipc *ipc)
@@ -218,7 +218,7 @@ int		remove_player(struct ipc *ipc)
 	return (nb_players);
 }
 
-int		exit_game(struct ipc *ipc)
+void	exit_game(struct ipc *ipc)
 {
 	int nb_players;
 
@@ -232,11 +232,10 @@ int		exit_game(struct ipc *ipc)
 		semctl(ipc->sem_id[PLAY], IPC_RMID, 0);
 		shmctl(ipc->shm_id, IPC_RMID, 0);
 		free(ipc->chatbox);
-		return (EXIT_SUCCESS);
+		return ;
 	}
 	shmdt(ipc->game);
 	free(ipc->chatbox);
 	ipc->game = NULL;
 	ipc->chatbox = NULL;
-	return (EXIT_SUCCESS);
 }
