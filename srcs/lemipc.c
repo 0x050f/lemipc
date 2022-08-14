@@ -71,16 +71,33 @@ int			create_ipc(struct ipc *ipc, key_t keys[3])
 	return (EXIT_SUCCESS);
 }
 
-int			lemipc(struct ipc *ipc)
+int			setup_signals(void)
 {
-	int				nb_teams;
-	key_t			keys[3];
-
 	if (signal(SIGINT, signal_end_game) == SIG_ERR)
 	{
 		dprintf(STDERR_FILENO, "%s: signal(): %s\n", PRG_NAME, strerror(errno));
 		return (EXIT_FAILURE);
 	}
+	if (signal(SIGTERM, signal_end_game) == SIG_ERR)
+	{
+		dprintf(STDERR_FILENO, "%s: signal(): %s\n", PRG_NAME, strerror(errno));
+		return (EXIT_FAILURE);
+	}
+	if (signal(SIGQUIT, signal_end_game) == SIG_ERR)
+	{
+		dprintf(STDERR_FILENO, "%s: signal(): %s\n", PRG_NAME, strerror(errno));
+		return (EXIT_FAILURE);
+	}
+	return (EXIT_SUCCESS);
+}
+
+int			lemipc(struct ipc *ipc)
+{
+	int				nb_teams;
+	key_t			keys[3];
+
+	if (setup_signals() == EXIT_FAILURE)
+		return (EXIT_FAILURE);
 	for (size_t i = 0; i < 3; i++)
 	{
 		if ((keys[i] = ftok("/tmp", i + 42)) < 0)
