@@ -160,7 +160,8 @@ int		join_game(struct ipc *ipc)
 	if (i == MAX_PLAYERS)
 	{
 		sem_unlock(ipc->sem_id[PLAYERS]);
-		dprintf(STDERR_FILENO, "Game is full\n");
+		sem_unlock(ipc->sem_id[PLAY]);
+		printf("Game is full\n");
 		return (EXIT_FAILURE);
 	}
 	game->nb_players++;

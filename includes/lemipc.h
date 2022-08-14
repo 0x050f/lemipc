@@ -50,8 +50,8 @@ struct			ipc
 	uint8_t			*chatbox;
 };
 
-# define HEIGHT			4
-# define WIDTH			20
+# define HEIGHT			2
+# define WIDTH			2
 
 # define MAX_PLAYERS	HEIGHT * WIDTH
 

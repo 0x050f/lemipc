@@ -107,8 +107,8 @@ int			lemipc(struct ipc *ipc)
 	}
 	if (setup_chatbox(ipc) == EXIT_FAILURE)
 		return (EXIT_FAILURE);
-	join_game(ipc);
-	exit_game(ipc);
+	if (join_game(ipc) == EXIT_SUCCESS)
+		exit_game(ipc);
 	return (EXIT_SUCCESS);
 }
 
