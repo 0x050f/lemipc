@@ -47,7 +47,7 @@ int		count_nb_teams(struct ipc *ipc)
 	game = ipc->game;
 	for (size_t i = 0; i < MAX_PLAYERS; i++)
 	{
-		if (game->players[i].pid != -1)
+		if (game->players[i].pid != -1 && game->players[i].team != -1)
 			team_nb[game->players[i].team]++;
 	}
 	sum = 0;
@@ -242,15 +242,24 @@ get_closest_target(ipc, &target_x, &target_y) == EXIT_FAILURE)
 		}
 		if (is_circle(ipc))
 		{
+			sem_lock(ipc->sem_id[PLAYERS]);
+			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
+			{
+				if (ipc->game->players[i].pid == ipc->player.pid)
+					ipc->game->players[i].team = -1;
+			}
+			sem_unlock(ipc->sem_id[PLAYERS]);
 			sprintf(buf, "I'm dead !");
 			send_msg_team(ipc, buf);
-			show_game(ipc);
-			exit_game(ipc);
 			for (size_t i = 0; i < (size_t)nb_players - 1; i++)
 				recv_msg(ipc, NULL);
+			sprintf(buf, "You lose !");
+			send_msg_self(ipc, buf);
+			show_game(ipc);
 			return(EXIT_SUCCESS);
 		}
 		sprintf(buf, "Ready for next turn !");
+		show_game(ipc);
 		send_msg_team(ipc, buf);
 		for (size_t i = 0; i < (size_t)nb_players - 1; i++)
 			recv_msg(ipc, NULL);
@@ -262,7 +271,6 @@ get_closest_target(ipc, &target_x, &target_y) == EXIT_FAILURE)
 	sprintf(buf, "You win !");
 	send_msg_self(ipc, buf);
 	show_game(ipc);
-	exit_game(ipc);
 	return (EXIT_SUCCESS);
 }
 
@@ -353,8 +361,11 @@ int		remove_player(struct ipc *ipc)
 	while (i < MAX_PLAYERS && game->players[i].pid != ipc->player.pid)
 		i++;
 	if (i != MAX_PLAYERS)
+	{
 		game->players[i].pid = -1;
-	ipc->game->map[ipc->player.pos_y][ipc->player.pos_x] = ' ';
+		game->players[i].team = -1;
+		ipc->game->map[ipc->player.pos_y][ipc->player.pos_x] = ' ';
+	}
 	sem_unlock(ipc->sem_id[MAP]);
 	sem_unlock(ipc->sem_id[PLAYERS]);
 	return (nb_players);

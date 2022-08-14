@@ -7,14 +7,10 @@ void		recv_msg(struct ipc *ipc, char buff[256])
 
 	if ((nr = msgrcv(ipc->mq_id, &mbuf, sizeof(mbuf) - sizeof(mbuf.mtype), ipc->player.pid, 0)) >= 0)
 	{
-		if (strncmp("OK", mbuf.mtext, nr - sizeof(mbuf.mpid)))
-		{
-			send_msg_pid(ipc, mbuf.mpid, "OK");
-			if (ipc->chatbox)
-				append_msg_chatbox(ipc->chatbox, mbuf.mtext, nr - sizeof(mbuf.mpid));
-			if (buff)
-				memcpy(buff, mbuf.mtext, nr);
-		}
+		if (ipc->chatbox)
+			append_msg_chatbox(ipc->chatbox, mbuf.mtext, nr - sizeof(mbuf.mpid));
+		if (buff)
+			memcpy(buff, mbuf.mtext, nr);
 	}
 	else
 	{
@@ -30,14 +26,10 @@ int			check_recv_msg(struct ipc *ipc, char buff[256])
 
 	if ((nr = msgrcv(ipc->mq_id, &mbuf, sizeof(mbuf) - sizeof(mbuf.mtype), ipc->player.pid, IPC_NOWAIT)) >= 0)
 	{
-		if (strncmp("OK", mbuf.mtext, nr - sizeof(mbuf.mpid)))
-		{
-			send_msg_pid(ipc, mbuf.mpid, "OK");
-			if (ipc->chatbox)
-				append_msg_chatbox(ipc->chatbox, mbuf.mtext, nr - sizeof(mbuf.mpid));
-			if (buff)
-				memcpy(buff, mbuf.mtext, nr);
-		}
+		if (ipc->chatbox)
+			append_msg_chatbox(ipc->chatbox, mbuf.mtext, nr - sizeof(mbuf.mpid));
+		if (buff)
+			memcpy(buff, mbuf.mtext, nr);
 		return (EXIT_SUCCESS);
 	}
 	return (EXIT_FAILURE);
@@ -85,8 +77,6 @@ void		send_msg_team(struct ipc *ipc, char *msg)
 			send_msg_self(ipc, msg_team);
 	}
 	sem_unlock(ipc->sem_id[PLAYERS]);
-	while (total--)
-		recv_msg(ipc, NULL);
 }
 
 void		send_msg_broadcast(struct ipc *ipc, char *msg)
@@ -106,6 +96,4 @@ void		send_msg_broadcast(struct ipc *ipc, char *msg)
 			send_msg_self(ipc, msg);
 	}
 	sem_unlock(ipc->sem_id[PLAYERS]);
-	while (total--)
-		recv_msg(ipc, NULL);
 }
